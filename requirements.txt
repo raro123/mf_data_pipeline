@@ -1,0 +1,9 @@
+pyspark
+prefect
+pandas
+requests
+boto3
+s3fs
+psycopg2-binary
+python-dotenv
+fuzzywuzzy
