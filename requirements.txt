@@ -7,3 +7,4 @@ s3fs
 psycopg2-binary
 python-dotenv
 fuzzywuzzy
+kiteconnect
