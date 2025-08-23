@@ -85,6 +85,7 @@ logs/
 *.log
 data/
 output/
+raw/
 
 # SQL database
 *.sqlite3
