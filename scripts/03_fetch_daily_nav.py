@@ -321,7 +321,8 @@ def main():
         # Fetch and process NAV data
         nav_data = fetch_daily_nav_data(target_date)
         
-        if nav_data is None:
+        if nav_data is None:\
+            
             logger.error(f"❌ Failed to fetch data for {target_date}")
             failed_dates.append(target_date)
             continue

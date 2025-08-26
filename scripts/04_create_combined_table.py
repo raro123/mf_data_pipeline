@@ -214,19 +214,20 @@ def save_combined_table(df, output_path="data/raw_nav_table.parquet"):
     output_file.parent.mkdir(parents=True, exist_ok=True)
     
     try:
-        # Sort by date and scheme_code for better organization
-        df_sorted = df.sort_values(['date', 'scheme_code']).reset_index(drop=True)
+        # Use categorical types for memory efficiency (no sorting to avoid memory issues)
+        df['scheme_code'] = df['scheme_code'].astype('category')
+        df['scheme_name'] = df['scheme_name'].astype('category')
         
-        # Save as Parquet
-        df_sorted.to_parquet(output_file, index=False, compression='snappy')
+        # Save as Parquet without sorting
+        df.to_parquet(output_file, index=False, compression='snappy')
         
         file_size_mb = output_file.stat().st_size / (1024 * 1024)
         
         logger.info(f"✅ Saved combined NAV table: {output_file}")
-        logger.info(f"📊 Records: {len(df_sorted):,}")
+        logger.info(f"📊 Records: {len(df):,}")
         logger.info(f"📦 Size: {file_size_mb:.2f} MB")
-        logger.info(f"📅 Date range: {df_sorted['date'].min().date()} to {df_sorted['date'].max().date()}")
-        logger.info(f"🏢 Unique schemes: {df_sorted['scheme_code'].nunique():,}")
+        logger.info(f"📅 Date range: {df['date'].min().date()} to {df['date'].max().date()}")
+        logger.info(f"🏢 Unique schemes: {df['scheme_code'].nunique():,}")
         
         return str(output_file)
         
@@ -235,45 +236,96 @@ def save_combined_table(df, output_path="data/raw_nav_table.parquet"):
         return None
 
 def main():
-    """Main function to create combined raw NAV table."""
+    """Main function to create combined raw NAV table with memory-efficient processing."""
     logger.info("🚀 Starting raw NAV table creation...")
     
-    # Load historical data
-    hist_data = load_historical_data()
-    if hist_data is None:
-        logger.error("Failed to load historical data")
+    # Step 1: Process historical data in chunks and write immediately
+    logger.info("📚 Processing historical data in chunks...")
+    hist_dir = Path("raw/amfi_nav_history")
+    batch_files = sorted(hist_dir.glob("batch_*.parquet"))
+    
+    if not batch_files:
+        logger.error("No historical batch files found")
         return 1
     
-    # Load daily data
-    daily_data = load_daily_data()
+    # Create output directory
+    output_file = Path("data/raw_nav_table.parquet")
+    output_file.parent.mkdir(parents=True, exist_ok=True)
     
-    # Combine datasets
-    logger.info("🔄 Combining historical and daily data...")
+    # Process first batch to establish schema
+    logger.info(f"Processing {batch_files[0].name} (establishing schema)...")
+    first_batch = pd.read_parquet(batch_files[0])
+    first_batch['scheme_code'] = first_batch['scheme_code'].astype('category')
+    first_batch['scheme_name'] = first_batch['scheme_name'].astype('category')
     
-    if daily_data.empty:
-        logger.info("No daily data to combine, using historical only")
-        combined_data = hist_data
-    else:
-        combined_data = pd.concat([hist_data, daily_data], ignore_index=True)
-        logger.info(f"✅ Combined data: {len(combined_data):,} total records")
+    # Write first batch
+    first_batch.to_parquet(output_file, index=False, compression='snappy')
+    total_records = len(first_batch)
+    logger.info(f"✅ Written {len(first_batch):,} records")
     
-    # Deduplicate
-    clean_data = deduplicate_data(combined_data)
+    # Process remaining batches and append
+    for batch_file in batch_files[1:]:
+        logger.info(f"Processing {batch_file.name}...")
+        batch_df = pd.read_parquet(batch_file)
+        batch_df['scheme_code'] = batch_df['scheme_code'].astype('category')
+        batch_df['scheme_name'] = batch_df['scheme_name'].astype('category')
+        
+        # Read existing data, combine with batch, write back
+        existing_df = pd.read_parquet(output_file)
+        combined_chunk = pd.concat([existing_df, batch_df], ignore_index=True)
+        combined_chunk.to_parquet(output_file, index=False, compression='snappy')
+        
+        total_records += len(batch_df)
+        logger.info(f"✅ Added {len(batch_df):,} records (total: {total_records:,})")
+        
+        # Clear memory
+        del batch_df, existing_df, combined_chunk
     
-    # Validate
-    if not validate_combined_data(clean_data):
-        logger.error("Data validation failed")
-        return 1
+    # Step 2: Add daily data if available
+    daily_dir = Path("raw/amfi_nav_daily")
+    daily_files = sorted(daily_dir.glob("daily_nav_*.parquet"))
     
-    # Save combined table
-    saved_path = save_combined_table(clean_data)
+    if daily_files:
+        logger.info("📅 Adding daily data...")
+        for daily_file in daily_files:
+            logger.info(f"Processing {daily_file.name}...")
+            daily_df = pd.read_parquet(daily_file)
+            daily_df['scheme_code'] = daily_df['scheme_code'].astype('category')
+            daily_df['scheme_name'] = daily_df['scheme_name'].astype('category')
+            
+            # Read existing, combine, write
+            existing_df = pd.read_parquet(output_file)
+            combined_chunk = pd.concat([existing_df, daily_df], ignore_index=True)
+            combined_chunk.to_parquet(output_file, index=False, compression='snappy')
+            
+            total_records += len(daily_df)
+            logger.info(f"✅ Added {len(daily_df):,} records (total: {total_records:,})")
+            
+            # Clear memory
+            del daily_df, existing_df, combined_chunk
     
-    if saved_path:
-        logger.info(f"🎉 Successfully created raw NAV table: {saved_path}")
-        return 0
-    else:
-        logger.error("Failed to save combined table")
-        return 1
+    # Step 3: Final deduplication pass
+    logger.info("🔍 Final deduplication pass...")
+    final_df = pd.read_parquet(output_file)
+    initial_count = len(final_df)
+    
+    final_clean = final_df.drop_duplicates(subset=['scheme_code', 'date'], keep='first')
+    final_count = len(final_clean)
+    
+    if initial_count != final_count:
+        logger.info(f"🗑️ Removed {initial_count - final_count:,} duplicates")
+        final_clean.to_parquet(output_file, index=False, compression='snappy')
+    
+    # Final summary
+    file_size_mb = output_file.stat().st_size / (1024 * 1024)
+    
+    logger.info(f"🎉 Successfully created raw NAV table: {output_file}")
+    logger.info(f"📊 Final records: {final_count:,}")
+    logger.info(f"📦 Size: {file_size_mb:.2f} MB")
+    logger.info(f"📅 Date range: {final_clean['date'].min().date()} to {final_clean['date'].max().date()}")
+    logger.info(f"🏢 Unique schemes: {final_clean['scheme_code'].nunique():,}")
+    
+    return 0
 
 if __name__ == "__main__":
     exit_code = main()

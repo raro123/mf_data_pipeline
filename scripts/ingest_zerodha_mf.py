@@ -141,6 +141,7 @@ def ingest_zerodha_mf_dump_workflow():
     # Step 3: Convert to CSV bytes
     csv_buffer = io.StringIO()
     mf_df.to_csv(csv_buffer, index=False)
+    mf_df.to_csv("raw/zerodha_mf_meta"+ZERODHA_DUMP_FILENAME_PREFIX+".csv", index=False)  # Save a local copy for reference
     csv_bytes = csv_buffer.getvalue().encode('utf-8')
 
     # Step 4: Generate R2 object name
