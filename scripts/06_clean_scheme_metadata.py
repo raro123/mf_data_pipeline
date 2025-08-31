@@ -23,18 +23,19 @@ logger = get_clean_metadata_logger(__name__)
 
 def load_raw_metadata():
     """
-    Load raw scheme metadata from configured CSV file.
+    Load the latest raw scheme metadata from timestamped CSV files.
         
     Returns:
         pandas.DataFrame: Raw metadata or None if failed
     """
-    # Use configured input path
-    input_file = Paths.SCHEME_METADATA_RAW
+    # Get the latest raw metadata file
+    from config.settings import get_latest_raw_metadata_file
     
-    logger.info(f"📂 Loading raw metadata from {input_file}...")
-    
-    if not input_file.exists():
-        logger.error(f"❌ Raw metadata file not found: {input_file}")
+    try:
+        input_file = get_latest_raw_metadata_file()
+        logger.info(f"📂 Loading raw metadata from {input_file}...")
+    except FileNotFoundError as e:
+        logger.error(f"❌ {e}")
         logger.info("💡 Run 05_extract_scheme_metadata.py first to extract raw data")
         return None
     
@@ -309,6 +310,26 @@ def main():
     
     log_script_start(logger, "Scheme Metadata Cleaner", 
                     "Processing raw scheme metadata into clean Parquet/CSV files")
+    
+    # Check if processing is needed
+    from config.settings import should_process_metadata, get_latest_raw_metadata_file
+    
+    if not should_process_metadata():
+        try:
+            latest_raw = get_latest_raw_metadata_file()
+            processed_file = Paths.PROCESSED_SCHEME_METADATA / "amfi_scheme_metadata.parquet"
+            
+            logger.info("✅ Processed metadata is up-to-date")
+            logger.info(f"📂 Latest raw: {latest_raw.name}")
+            logger.info(f"📄 Processed file: {processed_file.name}")
+            logger.info("💡 No processing needed - metadata already current")
+            
+            log_script_end(logger, "Scheme Metadata Cleaner", True)
+            return 0
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Could not check file timestamps: {e}")
+            logger.info("🔄 Proceeding with processing...")
     
     # Ensure directories exist
     Paths.create_directories()

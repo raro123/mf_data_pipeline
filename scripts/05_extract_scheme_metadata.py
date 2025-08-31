@@ -73,7 +73,7 @@ def fetch_scheme_metadata():
 
 def save_raw_metadata(csv_content):
     """
-    Save raw CSV content to file using configured paths.
+    Save raw CSV content to timestamped file for better versioning.
     
     Args:
         csv_content (str): Raw CSV content
@@ -81,8 +81,9 @@ def save_raw_metadata(csv_content):
     Returns:
         str: Path to saved file or None if failed
     """
-    # Use configured output path
-    output_file = Paths.SCHEME_METADATA_RAW
+    # Use timestamped output path for better versioning
+    from config.settings import get_timestamped_metadata_file_path
+    output_file = get_timestamped_metadata_file_path()
     
     logger.info(f"💾 Saving raw metadata to {output_file}...")
     

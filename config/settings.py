@@ -205,6 +205,65 @@ def get_daily_nav_file_path(date_str: str) -> Path:
     """Generate path for daily NAV files."""
     return Paths.RAW_NAV_DAILY / f"daily_nav_{date_str}.parquet"
 
+def get_timestamped_metadata_file_path(date_str: str = None) -> Path:
+    """Generate path for timestamped raw metadata files."""
+    from datetime import datetime
+    
+    if date_str is None:
+        date_str = datetime.now().strftime('%Y%m%d')
+    
+    return Paths.SCHEME_METADATA_DIR / f"scheme_metadata_{date_str}.csv"
+
+def get_latest_raw_metadata_file() -> Path:
+    """
+    Find and return the most recent raw metadata file.
+    
+    Returns:
+        Path: Path to the latest raw metadata file
+        
+    Raises:
+        FileNotFoundError: If no metadata files found
+    """
+    metadata_dir = Paths.SCHEME_METADATA_DIR
+    
+    if not metadata_dir.exists():
+        raise FileNotFoundError(f"Metadata directory not found: {metadata_dir}")
+    
+    # Look for timestamped files first
+    timestamped_files = list(metadata_dir.glob("scheme_metadata_*.csv"))
+    
+    if timestamped_files:
+        # Return the most recently modified timestamped file
+        return max(timestamped_files, key=lambda f: f.stat().st_mtime)
+    
+    # Fallback to legacy filename
+    legacy_file = Paths.SCHEME_METADATA_RAW
+    if legacy_file.exists():
+        return legacy_file
+        
+    raise FileNotFoundError(f"No raw metadata files found in {metadata_dir}")
+
+def should_process_metadata() -> bool:
+    """
+    Check if raw metadata is newer than processed metadata.
+    
+    Returns:
+        bool: True if processing is needed, False otherwise
+    """
+    try:
+        latest_raw = get_latest_raw_metadata_file()
+        processed_file = Paths.SCHEME_METADATA_CLEAN
+        
+        # Process if processed file doesn't exist
+        if not processed_file.exists():
+            return True
+            
+        # Process if raw file is newer than processed file
+        return latest_raw.stat().st_mtime > processed_file.stat().st_mtime
+        
+    except FileNotFoundError:
+        return False
+
 # =============================================================================
 # INITIALIZATION
 # =============================================================================
