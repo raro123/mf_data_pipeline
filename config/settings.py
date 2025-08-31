@@ -129,6 +129,7 @@ class Logging:
     COMBINE_TABLE_LOG = "raw_nav_table_{date}.log"
     EXTRACT_METADATA_LOG = "extract_scheme_metadata_{date}.log"
     CLEAN_METADATA_LOG = "clean_scheme_metadata_{date}.log"
+    ANALYTICAL_NAV_LOG = "analytical_nav_{date}.log"
     
     # Log retention
     LOG_RETENTION_DAYS = int(os.getenv("LOG_RETENTION_DAYS", "30"))

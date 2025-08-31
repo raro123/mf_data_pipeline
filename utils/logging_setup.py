@@ -236,6 +236,10 @@ def get_clean_metadata_logger(name: str = __name__) -> logging.Logger:
     """Get logger for scheme metadata cleaning."""
     return setup_logger(name, Logging.CLEAN_METADATA_LOG)
 
+def get_analytical_nav_logger(name: str = __name__) -> logging.Logger:
+    """Get logger for analytical NAV dataset creation."""
+    return setup_logger(name, Logging.ANALYTICAL_NAV_LOG)
+
 
 if __name__ == "__main__":
     # Test logging setup
