@@ -24,39 +24,47 @@ class Paths:
     """All file and directory paths used in the pipeline."""
     
     # Base directories
-    RAW_DATA = PROJECT_ROOT / "raw"
-    PROCESSED_DATA = PROJECT_ROOT / "data" 
+    DATA_ROOT = PROJECT_ROOT / "data"
+    RAW_DATA = DATA_ROOT / "raw"
+    PROCESSED_DATA = DATA_ROOT / "processed"
     LOGS = PROJECT_ROOT / "logs"
     SCRIPTS = PROJECT_ROOT / "scripts"
     
-    # Historical NAV data
-    RAW_NAV_HISTORICAL = RAW_DATA / "amfi_nav_history"
-    RAW_NAV_CSV = RAW_DATA / "amfi_nav"  # Raw CSV files from API
-    
-    # Daily NAV data  
-    RAW_NAV_DAILY = RAW_DATA / "amfi_nav_daily"
-    
-    # Scheme metadata
+    # Raw data directories
+    RAW_NAV_CSV = RAW_DATA / "nav_historical"  # Raw CSV files from API
+    RAW_NAV_DAILY = RAW_DATA / "nav_daily"
     SCHEME_METADATA_DIR = RAW_DATA / "scheme_metadata"
     SCHEME_METADATA_RAW = SCHEME_METADATA_DIR / "scheme_metadata_raw.csv"
-    SCHEME_METADATA_CLEAN = RAW_DATA / "amfi_scheme_metadata.parquet"
-    SCHEME_METADATA_CSV = RAW_DATA / "amfi_scheme_metadata.csv"
     
-    # Combined/processed data
-    COMBINED_NAV_TABLE = PROCESSED_DATA / "raw_nav_table.parquet"
+    # Processed data directories
+    RAW_NAV_HISTORICAL = PROCESSED_DATA / "nav_historical"  # Cleaned historical batches
+    PROCESSED_NAV_DAILY = PROCESSED_DATA / "nav_daily"
+    NAV_COMBINED = PROCESSED_DATA / "nav_combined"
+    PROCESSED_SCHEME_METADATA = PROCESSED_DATA / "scheme_metadata"
+    ANALYTICAL = PROCESSED_DATA / "analytical"
+    
+    # Specific file paths
+    SCHEME_METADATA_CLEAN = PROCESSED_SCHEME_METADATA / "amfi_scheme_metadata.parquet"
+    SCHEME_METADATA_CSV = PROCESSED_SCHEME_METADATA / "amfi_scheme_metadata.csv"
+    COMBINED_NAV_TABLE = NAV_COMBINED / "raw_nav_table.parquet"
     
     # Create all directories
     @classmethod
     def create_directories(cls):
         """Create all required directories if they don't exist."""
         directories = [
+            cls.DATA_ROOT,
             cls.RAW_DATA,
             cls.PROCESSED_DATA, 
             cls.LOGS,
-            cls.RAW_NAV_HISTORICAL,
             cls.RAW_NAV_CSV,
             cls.RAW_NAV_DAILY,
-            cls.SCHEME_METADATA_DIR
+            cls.SCHEME_METADATA_DIR,
+            cls.RAW_NAV_HISTORICAL,
+            cls.PROCESSED_NAV_DAILY,
+            cls.NAV_COMBINED,
+            cls.PROCESSED_SCHEME_METADATA,
+            cls.ANALYTICAL
         ]
         
         for directory in directories:
