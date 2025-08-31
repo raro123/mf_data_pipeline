@@ -1,254 +1,256 @@
 #!/usr/bin/env python3
+"""
+Daily NAV Data Fetcher
+
+Fetches current NAV data from AMFI with gap-filling and weekend skip logic.
+This script has been refactored to use centralized configuration and logging.
+"""
 
 import requests
 import pandas as pd
+import sys
 from datetime import datetime, date, timedelta
 from pathlib import Path
 from io import StringIO
-import logging
-import os
-from dotenv import load_dotenv
 
-# Configuration
-load_dotenv()
+# Add project root to Python path
+sys.path.append(str(Path(__file__).parent.parent))
 
-# Simple logging setup
-Path("logs").mkdir(exist_ok=True)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(f"logs/daily_nav_{datetime.now().strftime('%Y%m%d')}.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+# Import centralized configuration
+from config.settings import Paths, API, Validation, get_daily_nav_file_path
+from utils.logging_setup import get_daily_fetch_logger, log_script_start, log_script_end, log_data_summary, log_file_operation
+
+# Initialize logger
+logger = get_daily_fetch_logger(__name__)
 
 def generate_timestamp():
-    """Generate timestamp in the format expected by AMFI API."""
+    """
+    Generate timestamp in the format expected by AMFI API.
+    
+    Returns:
+        str: Timestamp in DDMMYYYYHHMMSS format
+    """
     now = datetime.now()
-    # Format: DDMMYYYYHHMMSS (based on the example t=2408202509470)
     return now.strftime('%d%m%Y%H%M%S')
 
 def fetch_daily_nav_data(nav_date=None):
     """
-    Fetch current NAV data from AMFI.
+    Fetch current NAV data from AMFI API.
     
     Args:
         nav_date (datetime.date, optional): Specific date to fetch. Defaults to today.
         
     Returns:
-        pandas.DataFrame: Cleaned NAV data or None if failed
+        pandas.DataFrame: NAV data or None if failed
     """
     if nav_date is None:
         nav_date = date.today()
     
-    # Generate timestamp for API call
     timestamp = generate_timestamp()
-    url = f"https://www.amfiindia.com/spages/NAVAll.txt?t={timestamp}"
     
-    logger.info(f"Fetching daily NAV data for {nav_date}")
-    logger.info(f"API URL: {url}")
+    # Use configured API settings
+    url = f"{API.AMFI_NAV_BASE_URL}?t={timestamp}"
+    
+    logger.info(f"📡 Fetching daily NAV data for {nav_date}")
+    logger.info(f"🌐 API URL: {url}")
     
     try:
-        # Fetch data
-        response = requests.get(url, timeout=30)
+        response = requests.get(url, timeout=API.AMFI_NAV_TIMEOUT)
         response.raise_for_status()
         
-        # Check if we got data
-        if len(response.text.strip()) < 100:
-            logger.warning("Response too short, likely no data")
-            return None
+        logger.info(f"✅ Fetched {len(response.content):,} bytes")
         
-        # Parse CSV data
-        df = pd.read_csv(StringIO(response.text), sep=";", dtype=str)
-        logger.info(f"Fetched {len(df)} raw records")
+        # Read the data
+        nav_data = StringIO(response.text)
+        df = pd.read_csv(nav_data, sep=';', header=None)
         
-        # Clean and validate data using same logic as historical processor
-        cleaned_df = clean_daily_nav_data(df, nav_date)
+        logger.info(f"📊 Fetched {len(df):,} raw records")
         
-        if cleaned_df is not None and not cleaned_df.empty:
-            logger.info(f"Successfully processed {len(cleaned_df)} valid NAV records")
-            return cleaned_df
-        else:
-            logger.warning("No valid NAV data after cleaning")
+        # Basic validation
+        if df.empty:
+            logger.warning("⚠️ No data received from API")
             return None
             
-    except requests.RequestException as e:
-        logger.error(f"Failed to fetch NAV data: {e}")
+        return df
+        
+    except requests.exceptions.Timeout:
+        logger.error(f"⏰ Request timeout after {API.AMFI_NAV_TIMEOUT}s")
+        return None
+    except requests.exceptions.RequestException as e:
+        logger.error(f"🌐 Request failed: {e}")
         return None
     except Exception as e:
-        logger.error(f"Error processing NAV data: {e}")
+        logger.error(f"❌ Unexpected error: {e}")
         return None
 
 def clean_daily_nav_data(df, nav_date):
     """
-    Clean daily NAV data using same logic as historical processor.
+    Clean and standardize daily NAV data.
     
     Args:
         df (pandas.DataFrame): Raw NAV data
-        nav_date (datetime.date): Expected NAV date
+        nav_date (datetime.date): Target date for the data
         
     Returns:
-        pandas.DataFrame: Cleaned data
+        pandas.DataFrame: Cleaned NAV data or None if failed
     """
+    if df is None or df.empty:
+        logger.warning("⚠️ No data to clean")
+        return None
+    
     try:
-        if df is None or df.empty:
+        # Set column names based on expected format
+        expected_cols = ['Scheme Code', 'ISIN Div Payout/ ISIN Growth', 'ISIN Div Reinvestment', 
+                        'Scheme Name', 'Net Asset Value', 'Date']
+        
+        if len(df.columns) >= len(expected_cols):
+            df.columns = expected_cols + [f'extra_{i}' for i in range(len(df.columns) - len(expected_cols))]
+        else:
+            logger.error(f"❌ Unexpected data format: {len(df.columns)} columns")
             return None
         
-        # Filter out header rows and category separators (same as historical)
-        clean_df = df[
-            df['Scheme Code'].notna() & 
-            df['Date'].notna() & 
-            ~df['Scheme Code'].str.contains('Open Ended|Close Ended|Interval Fund|Fund of Funds', na=False) &
-            ~df['Scheme Code'].str.contains('Mutual Fund', na=False)
-        ].copy()
+        # Drop rows with missing NAV
+        initial_count = len(df)
+        df = df.dropna(subset=['Net Asset Value'])
+        dropped_nav = initial_count - len(df)
         
-        if clean_df.empty:
-            logger.warning("No valid records after filtering")
+        if dropped_nav > 0:
+            logger.info(f"🗑️ Dropped {dropped_nav:,} records with missing NAV")
+        
+        # Convert NAV to numeric and filter invalid values
+        df['Net Asset Value'] = pd.to_numeric(df['Net Asset Value'], errors='coerce')
+        df = df.dropna(subset=['Net Asset Value'])
+        
+        # Apply validation rules from config
+        valid_nav = (
+            (df['Net Asset Value'] >= Validation.MIN_NAV_VALUE) & 
+            (df['Net Asset Value'] <= Validation.MAX_NAV_VALUE)
+        )
+        df = df[valid_nav]
+        
+        if df.empty:
+            logger.error("❌ No valid NAV records after filtering")
             return None
         
-        # Rename columns to match our standard schema
-        clean_df = clean_df.rename(columns={
+        # Parse and validate dates
+        df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+        
+        # Check date consistency
+        unique_dates = df['Date'].dt.date.unique()
+        unique_dates = unique_dates[pd.notna(unique_dates)]
+        
+        if len(unique_dates) > 1:
+            logger.warning(f"⚠️ Data contains multiple dates: {unique_dates}")
+        
+        # Standardize column names
+        clean_df = df.rename(columns={
             'Scheme Code': 'scheme_code',
-            'Scheme Name': 'scheme_name',
-            'ISIN Div Payout/ ISIN Growth': 'isin_growth',  # Note the space in daily data
+            'Scheme Name': 'scheme_name', 
+            'ISIN Div Payout/ ISIN Growth': 'isin_growth',
             'ISIN Div Reinvestment': 'isin_dividend',
             'Net Asset Value': 'nav',
-            'Repurchase Price': 'repurchase_price',
-            'Sale Price': 'sale_price',
             'Date': 'date'
         })
         
-        # Handle missing columns (daily data may not have repurchase/sale prices)
-        for col in ['repurchase_price', 'sale_price']:
-            if col not in clean_df.columns:
-                clean_df[col] = None
+        # Add repurchase and sale prices (same as NAV for daily data)
+        clean_df['repurchase_price'] = clean_df['nav']
+        clean_df['sale_price'] = clean_df['nav']
         
-        # Convert data types
-        clean_df['scheme_code'] = clean_df['scheme_code'].astype(str)
-        clean_df['nav'] = pd.to_numeric(clean_df['nav'], errors='coerce')
-        clean_df['repurchase_price'] = pd.to_numeric(clean_df['repurchase_price'], errors='coerce')
-        clean_df['sale_price'] = pd.to_numeric(clean_df['sale_price'], errors='coerce')
+        # Set consistent date
+        clean_df['date'] = pd.to_datetime(nav_date)
         
-        # Convert date - daily format might be different
-        clean_df['date'] = pd.to_datetime(clean_df['date'], format='%d-%b-%Y', errors='coerce')
+        final_count = len(clean_df)
+        logger.info(f"✅ Cleaned daily data: {final_count:,} valid records")
+        logger.info(f"📊 Successfully processed {final_count:,} valid NAV records")
         
-        # Remove rows where NAV is missing
-        initial_count = len(clean_df)
-        clean_df = clean_df[clean_df['nav'].notna()]
-        dropped = initial_count - len(clean_df)
-        
-        if dropped > 0:
-            logger.info(f"Dropped {dropped} records with missing NAV")
-        
-        # Validate date matches expected
-        if not clean_df.empty:
-            actual_dates = clean_df['date'].dropna().dt.date.unique()
-            if len(actual_dates) == 1 and actual_dates[0] != nav_date:
-                logger.warning(f"Expected date {nav_date}, but data contains {actual_dates[0]}")
-            elif len(actual_dates) > 1:
-                logger.warning(f"Data contains multiple dates: {actual_dates}")
-        
-        # Select final columns in correct order
-        final_columns = [
-            'scheme_code', 'scheme_name', 'isin_growth', 'isin_dividend', 
-            'nav', 'repurchase_price', 'sale_price', 'date'
-        ]
-        
-        result_df = clean_df[final_columns]
-        
-        logger.info(f"Cleaned daily data: {len(result_df)} valid records")
-        return result_df
+        return clean_df
         
     except Exception as e:
-        logger.error(f"Error cleaning daily NAV data: {e}")
+        logger.error(f"❌ Error cleaning daily NAV data: {e}")
         return None
 
-def save_daily_nav_data(df, nav_date, output_dir="raw/amfi_nav_daily"):
+def save_daily_nav_data(df, nav_date):
     """
-    Save daily NAV data to file.
+    Save daily NAV data to Parquet file using configured paths.
     
     Args:
         df (pandas.DataFrame): Cleaned NAV data
-        nav_date (datetime.date): NAV date
-        output_dir (str): Output directory
+        nav_date (datetime.date): Date for the data
         
     Returns:
         str: Path to saved file or None if failed
     """
     if df is None or df.empty:
-        logger.error("Cannot save empty DataFrame")
+        logger.warning("⚠️ No data to save")
         return None
     
-    # Create output directory
-    output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
+    # Use configured file path
+    date_str = nav_date.strftime('%Y%m%d')
+    file_path = get_daily_nav_file_path(date_str)
     
-    # Generate filename
-    filename = f"daily_nav_{nav_date.strftime('%Y%m%d')}.parquet"
-    file_path = output_path / filename
-    
-    # Check if file already exists
-    if file_path.exists():
-        logger.info(f"File {file_path} already exists")
-        
-        # Load existing and compare
-        try:
-            existing_df = pd.read_parquet(file_path)
-            if len(existing_df) == len(df):
-                logger.info("Same record count, skipping save")
-                return str(file_path)
-        except Exception as e:
-            logger.warning(f"Could not read existing file: {e}")
+    # Ensure output directory exists
+    file_path.parent.mkdir(parents=True, exist_ok=True)
     
     try:
-        # Save as Parquet
-        df.to_parquet(file_path, index=False, compression='snappy')
-        file_size_mb = file_path.stat().st_size / (1024 * 1024)
+        # Use configured compression
+        from config.settings import Processing
+        df.to_parquet(file_path, index=False, compression=Processing.PARQUET_COMPRESSION)
         
-        logger.info(f"✅ Saved daily NAV data: {file_path}")
+        file_size_mb = file_path.stat().st_size / (1024 * 1024)
+        log_file_operation(logger, "saved", file_path, True, file_size_mb)
+        
         logger.info(f"📊 Records: {len(df):,}")
         logger.info(f"📦 Size: {file_size_mb:.2f} MB")
         
         return str(file_path)
         
     except Exception as e:
-        logger.error(f"Failed to save NAV data: {e}")
+        logger.error(f"❌ Failed to save daily NAV data: {e}")
         return None
 
 def get_latest_historical_date():
     """
-    Get the latest date from historical data to avoid duplicates.
+    Get the latest date from historical NAV data.
     
     Returns:
-        datetime.date: Latest date in historical data or None
+        datetime.date: Latest historical date or None if not found
     """
     try:
-        history_dir = Path("raw/amfi_nav_history")
+        # Check configured historical directory
+        history_dir = Paths.RAW_NAV_HISTORICAL
+        
         if not history_dir.exists():
-            logger.warning("Historical data directory not found")
+            logger.warning(f"⚠️ Historical directory not found: {history_dir}")
             return None
         
-        # Check the last batch file for latest date
-        batch_files = sorted(history_dir.glob("batch_*.parquet"))
+        batch_files = list(history_dir.glob("batch_*.parquet"))
         if not batch_files:
-            logger.warning("No historical batch files found")
+            logger.warning("⚠️ No historical batch files found")
             return None
         
-        # Read the last batch to get the latest date
-        last_batch = pd.read_parquet(batch_files[-1])
-        latest_date = last_batch['date'].max().date()
+        # Read the last batch file to get latest date
+        latest_batch = sorted(batch_files)[-1]
+        df = pd.read_parquet(latest_batch)
         
-        logger.info(f"Latest historical date: {latest_date}")
+        latest_date = df['date'].max().date()
+        logger.info(f"📅 Latest historical date: {latest_date}")
+        
         return latest_date
         
     except Exception as e:
-        logger.error(f"Error checking historical data: {e}")
+        logger.error(f"❌ Error checking historical data: {e}")
         return None
 
 def is_weekend(check_date):
-    """Check if the given date is a weekend (Saturday=5, Sunday=6)."""
+    """
+    Check if the given date is a weekend (Saturday=5, Sunday=6).
+    
+    Args:
+        check_date (datetime.date): Date to check
+        
+    Returns:
+        bool: True if weekend, False otherwise
+    """
     return check_date.weekday() >= 5
 
 def get_missing_dates(latest_historical_date):
@@ -279,17 +281,23 @@ def get_missing_dates(latest_historical_date):
 
 def main():
     """Main function to fetch and save daily NAV data."""
-    logger.info("🚀 Starting daily NAV extraction...")
+    
+    log_script_start(logger, "Daily NAV Fetcher", 
+                    "Fetching daily NAV data with gap-filling and weekend skip")
+    
+    # Ensure directories exist
+    Paths.create_directories()
     
     # Get latest historical date
     latest_historical = get_latest_historical_date()
-    logger.info(f"Latest historical date: {latest_historical}")
+    logger.info(f"📅 Latest historical date: {latest_historical}")
     
     # Get missing dates (excluding weekends)
     missing_dates = get_missing_dates(latest_historical)
     
     if not missing_dates:
         logger.info("✅ No missing dates to process")
+        log_script_end(logger, "Daily NAV Fetcher", True)
         return 0
     
     logger.info(f"📅 Missing dates to process: {len(missing_dates)}")
@@ -309,47 +317,58 @@ def main():
             continue
         
         # Check if file already exists
-        output_dir = Path("raw/amfi_nav_daily")
-        filename = f"daily_nav_{target_date.strftime('%Y%m%d')}.parquet"
-        file_path = output_dir / filename
+        date_str = target_date.strftime('%Y%m%d')
+        file_path = get_daily_nav_file_path(date_str)
         
         if file_path.exists():
-            logger.info(f"✅ File already exists: {file_path}")
+            file_size_mb = file_path.stat().st_size / (1024 * 1024)
+            logger.info(f"📄 File already exists: {file_path} ({file_size_mb:.2f} MB)")
             success_count += 1
             continue
         
         # Fetch and process NAV data
         nav_data = fetch_daily_nav_data(target_date)
         
-        if nav_data is None:\
-            
+        if nav_data is None:
             logger.error(f"❌ Failed to fetch data for {target_date}")
             failed_dates.append(target_date)
             continue
         
+        # Clean the data
+        clean_data = clean_daily_nav_data(nav_data, target_date)
+        if clean_data is None:
+            logger.error(f"❌ Failed to clean data for {target_date}")
+            failed_dates.append(target_date)
+            continue
+        
         # Save the data
-        saved_path = save_daily_nav_data(nav_data, target_date)
+        saved_path = save_daily_nav_data(clean_data, target_date)
         
         if saved_path:
             success_count += 1
-            unique_schemes = nav_data['scheme_code'].nunique()
+            unique_schemes = clean_data['scheme_code'].nunique()
             logger.info(f"✅ Saved {target_date}: {unique_schemes:,} schemes")
         else:
             logger.error(f"❌ Failed to save data for {target_date}")
             failed_dates.append(target_date)
     
     # Final summary
-    logger.info(f"\n🎉 Processing complete!")
-    logger.info(f"✅ Successfully processed: {success_count}/{len(missing_dates)} dates")
+    logger.info(f"\n📊 Processing Summary:")
+    logger.info(f"   Total dates: {len(missing_dates)}")
+    logger.info(f"   Successfully processed: {success_count}")
+    logger.info(f"   Failed: {len(failed_dates)}")
     
     if failed_dates:
-        logger.warning(f"❌ Failed dates: {len(failed_dates)}")
+        logger.warning("⚠️ Failed dates:")
         for failed_date in failed_dates:
             logger.warning(f"   - {failed_date}")
-        return 1
     else:
         logger.info("🎊 All dates processed successfully!")
-        return 0
+    
+    success = len(failed_dates) == 0
+    log_script_end(logger, "Daily NAV Fetcher", success)
+    
+    return 0 if success else 1
 
 if __name__ == "__main__":
     exit_code = main()

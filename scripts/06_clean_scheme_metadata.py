@@ -1,47 +1,48 @@
 #!/usr/bin/env python3
+"""
+Scheme Metadata Cleaner
+
+Processes raw scheme metadata CSV and creates clean Parquet/CSV files.
+This script has been refactored to use centralized configuration and logging.
+"""
 
 import pandas as pd
+import sys
 from pathlib import Path
 from datetime import datetime
-import logging
-from dotenv import load_dotenv
 
-# Configuration
-load_dotenv()
+# Add project root to Python path
+sys.path.append(str(Path(__file__).parent.parent))
 
-# Logging setup
-Path("logs").mkdir(exist_ok=True)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(f"logs/clean_scheme_metadata_{datetime.now().strftime('%Y%m%d')}.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+# Import centralized configuration
+from config.settings import Paths, Processing, Validation
+from utils.logging_setup import get_clean_metadata_logger, log_script_start, log_script_end, log_data_summary, log_file_operation
 
-def load_raw_metadata(input_path="raw/scheme_metadata/scheme_metadata_raw.csv"):
+# Initialize logger
+logger = get_clean_metadata_logger(__name__)
+
+def load_raw_metadata():
     """
-    Load raw scheme metadata from CSV file.
-    
-    Args:
-        input_path (str): Path to raw CSV file
+    Load raw scheme metadata from configured CSV file.
         
     Returns:
         pandas.DataFrame: Raw metadata or None if failed
     """
-    logger.info(f"📂 Loading raw metadata from {input_path}...")
+    # Use configured input path
+    input_file = Paths.SCHEME_METADATA_RAW
     
-    input_file = Path(input_path)
+    logger.info(f"📂 Loading raw metadata from {input_file}...")
+    
     if not input_file.exists():
-        logger.error(f"❌ Raw metadata file not found: {input_path}")
+        logger.error(f"❌ Raw metadata file not found: {input_file}")
         logger.info("💡 Run 05_extract_scheme_metadata.py first to extract raw data")
         return None
     
     try:
-        df = pd.read_csv(input_file)
-        logger.info(f"✅ Loaded raw data: {df.shape}")
+        # Use configured encoding
+        df = pd.read_csv(input_file, encoding=Processing.CSV_ENCODING)
+        
+        log_data_summary(logger, df, "raw scheme metadata")
         logger.info(f"📋 Columns: {list(df.columns)}")
         
         # Show sample data
@@ -251,26 +252,28 @@ def validate_scheme_metadata(df):
     logger.info("✅ Validation completed")
     return True
 
-def save_scheme_metadata(df, output_path="raw/amfi_scheme_metadata.parquet"):
+def save_scheme_metadata(df):
     """
-    Save the cleaned scheme metadata.
+    Save the cleaned scheme metadata using configured paths.
     
     Args:
         df (pandas.DataFrame): Cleaned metadata
-        output_path (str): Output file path
         
     Returns:
         str: Path to saved file or None if failed
     """
-    logger.info(f"💾 Saving cleaned scheme metadata to {output_path}...")
+    # Use configured output paths
+    parquet_file = Paths.SCHEME_METADATA_CLEAN
+    csv_file = Paths.SCHEME_METADATA_CSV
+    
+    logger.info(f"💾 Saving cleaned scheme metadata...")
     
     if df is None or df.empty:
         logger.error("No data to save")
         return None
     
     # Create output directory
-    output_file = Path(output_path)
-    output_file.parent.mkdir(parents=True, exist_ok=True)
+    parquet_file.parent.mkdir(parents=True, exist_ok=True)
     
     try:
         # Use categorical types for memory efficiency
@@ -282,22 +285,20 @@ def save_scheme_metadata(df, output_path="raw/amfi_scheme_metadata.parquet"):
                 df_save[col] = df_save[col].astype('category')
                 logger.info(f"   Made {col} categorical ({df_save[col].nunique()} categories)")
         
-        # Save as Parquet
-        df_save.to_parquet(output_file, index=False, compression='snappy')
+        # Save as Parquet with configured compression
+        df_save.to_parquet(parquet_file, index=False, compression=Processing.PARQUET_COMPRESSION)
         
-        file_size_mb = output_file.stat().st_size / (1024 * 1024)
-        
-        logger.info(f"✅ Saved scheme metadata: {output_file}")
-        logger.info(f"📊 Records: {len(df_save):,}")
-        logger.info(f"📦 Size: {file_size_mb:.2f} MB")
+        parquet_size_mb = parquet_file.stat().st_size / (1024 * 1024)
+        log_file_operation(logger, "saved", parquet_file, True, parquet_size_mb)
         
         # Also save as CSV for easy viewing
-        csv_path = output_file.with_suffix('.csv')
-        df.to_csv(csv_path, index=False)
-        csv_size_mb = csv_path.stat().st_size / (1024 * 1024)
-        logger.info(f"📄 Also saved as CSV: {csv_path} ({csv_size_mb:.2f} MB)")
+        df.to_csv(csv_file, index=False, encoding=Processing.CSV_ENCODING)
+        csv_size_mb = csv_file.stat().st_size / (1024 * 1024)
+        log_file_operation(logger, "saved", csv_file, True, csv_size_mb)
         
-        return str(output_file)
+        logger.info(f"📊 Records: {len(df_save):,}")
+        
+        return str(parquet_file)
         
     except Exception as e:
         logger.error(f"Failed to save scheme metadata: {e}")
@@ -305,33 +306,37 @@ def save_scheme_metadata(df, output_path="raw/amfi_scheme_metadata.parquet"):
 
 def main():
     """Main function to clean and save scheme metadata."""
-    logger.info("🚀 Starting scheme metadata cleaning...")
-    logger.info("📝 This script processes raw data from 05_extract_scheme_metadata.py")
+    
+    log_script_start(logger, "Scheme Metadata Cleaner", 
+                    "Processing raw scheme metadata into clean Parquet/CSV files")
+    
+    # Ensure directories exist
+    Paths.create_directories()
     
     # Load raw data
     raw_data = load_raw_metadata()
     if raw_data is None:
-        logger.error("❌ Failed to load raw metadata")
+        log_script_end(logger, "Scheme Metadata Cleaner", False)
         return 1
     
     # Clean data
     clean_data = clean_scheme_metadata(raw_data)
     if clean_data is None:
         logger.error("❌ Failed to clean scheme metadata")
+        log_script_end(logger, "Scheme Metadata Cleaner", False)
         return 1
     
     # Validate data
-    if not validate_scheme_metadata(clean_data):
+    validation_passed = validate_scheme_metadata(clean_data)
+    if not validation_passed:
         logger.warning("⚠️ Data validation had warnings, but continuing...")
     
     # Save cleaned data
     saved_path = save_scheme_metadata(clean_data)
-    if saved_path:
-        logger.info(f"🎉 Successfully cleaned and saved scheme metadata: {saved_path}")
-        return 0
-    else:
-        logger.error("❌ Failed to save cleaned metadata")
-        return 1
+    success = saved_path is not None
+    
+    log_script_end(logger, "Scheme Metadata Cleaner", success)
+    return 0 if success else 1
 
 if __name__ == "__main__":
     exit_code = main()

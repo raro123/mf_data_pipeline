@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
+"""
+Scheme Metadata Extractor
+
+Fetches scheme metadata from AMFI portal and saves as raw CSV.
+This script has been refactored to use centralized configuration and logging.
+"""
 
 import requests
 import pandas as pd
+import sys
 from pathlib import Path
 from datetime import datetime
-import logging
 from io import StringIO
-from dotenv import load_dotenv
 
-# Configuration
-load_dotenv()
+# Add project root to Python path
+sys.path.append(str(Path(__file__).parent.parent))
 
-# Logging setup
-Path("logs").mkdir(exist_ok=True)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(f"logs/extract_scheme_metadata_{datetime.now().strftime('%Y%m%d')}.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+# Import centralized configuration
+from config.settings import Paths, API
+from utils.logging_setup import get_extract_metadata_logger, log_script_start, log_script_end, log_file_operation
+
+# Initialize logger
+logger = get_extract_metadata_logger(__name__)
 
 def fetch_scheme_metadata():
     """
@@ -32,14 +32,15 @@ def fetch_scheme_metadata():
     """
     logger.info("📡 Fetching scheme metadata from AMFI portal...")
     
-    url = 'https://portal.amfiindia.com/DownloadSchemeData_Po.aspx'
-    params = {'mf': '0'}
+    # Use configured API settings
+    url = API.AMFI_SCHEME_URL
+    params = API.AMFI_SCHEME_PARAMS
     
     try:
         logger.info(f"🌐 Requesting: {url}")
         logger.info(f"📋 Parameters: {params}")
         
-        response = requests.get(url, params=params, timeout=30)
+        response = requests.get(url, params=params, timeout=API.AMFI_SCHEME_TIMEOUT)
         response.raise_for_status()
         
         logger.info(f"✅ HTTP {response.status_code}: {len(response.content):,} bytes received")
@@ -70,36 +71,37 @@ def fetch_scheme_metadata():
         logger.error(f"❌ Unexpected error during fetch: {e}")
         return None
 
-def save_raw_metadata(csv_content, output_path="raw/scheme_metadata/scheme_metadata_raw.csv"):
+def save_raw_metadata(csv_content):
     """
-    Save raw CSV content to file.
+    Save raw CSV content to file using configured paths.
     
     Args:
         csv_content (str): Raw CSV content
-        output_path (str): Output file path
         
     Returns:
         str: Path to saved file or None if failed
     """
-    logger.info(f"💾 Saving raw metadata to {output_path}...")
+    # Use configured output path
+    output_file = Paths.SCHEME_METADATA_RAW
+    
+    logger.info(f"💾 Saving raw metadata to {output_file}...")
     
     if not csv_content:
         logger.error("No content to save")
         return None
     
     # Create output directory
-    output_file = Path(output_path)
     output_file.parent.mkdir(parents=True, exist_ok=True)
     
     try:
         # Save raw CSV content
-        with open(output_file, 'w', encoding='utf-8') as f:
+        # Use configured encoding
+        from config.settings import Processing
+        with open(output_file, 'w', encoding=Processing.CSV_ENCODING) as f:
             f.write(csv_content)
         
         file_size_mb = output_file.stat().st_size / (1024 * 1024)
-        
-        logger.info(f"✅ Saved raw metadata: {output_file}")
-        logger.info(f"📦 Size: {file_size_mb:.2f} MB")
+        log_file_operation(logger, "saved", output_file, True, file_size_mb)
         
         # Quick validation - try to read as CSV
         try:
@@ -117,24 +119,29 @@ def save_raw_metadata(csv_content, output_path="raw/scheme_metadata/scheme_metad
 
 def main():
     """Main function to extract and save raw scheme metadata."""
-    logger.info("🚀 Starting scheme metadata extraction...")
-    logger.info("📝 This script only extracts raw data - run 06_clean_scheme_metadata.py next")
+    
+    log_script_start(logger, "Scheme Metadata Extractor", 
+                    "Fetching raw scheme metadata from AMFI portal")
+    
+    # Ensure directories exist
+    Paths.create_directories()
     
     # Fetch raw data
     csv_content = fetch_scheme_metadata()
     if not csv_content:
         logger.error("❌ Failed to fetch scheme metadata")
+        log_script_end(logger, "Scheme Metadata Extractor", False)
         return 1
     
     # Save raw data
     saved_path = save_raw_metadata(csv_content)
-    if saved_path:
-        logger.info(f"🎉 Successfully extracted raw scheme metadata: {saved_path}")
+    success = saved_path is not None
+    
+    if success:
         logger.info("➡️  Next step: run 06_clean_scheme_metadata.py to process this data")
-        return 0
-    else:
-        logger.error("❌ Failed to save raw metadata")
-        return 1
+    
+    log_script_end(logger, "Scheme Metadata Extractor", success)
+    return 0 if success else 1
 
 if __name__ == "__main__":
     exit_code = main()
