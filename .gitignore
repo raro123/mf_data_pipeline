@@ -84,7 +84,7 @@ cython_debug/
 logs/
 *.log
 output/
-
+data/
 
 # SQL database
 *.sqlite3
