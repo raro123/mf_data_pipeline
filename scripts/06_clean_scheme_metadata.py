@@ -60,6 +60,333 @@ def load_raw_metadata():
         logger.error(f"❌ Failed to load raw metadata: {e}")
         return None
 
+def enhance_scheme_categorization(df, logger):
+    """
+    Extract enhanced scheme categorization from scheme_category column.
+    
+    Creates two new columns:
+    - scheme_category_level1: Main category (Equity Scheme, Debt Scheme, etc.)
+    - scheme_category_level2: Sub-category (Large Cap Fund, Liquid Fund, etc.)
+    
+    Args:
+        df (pandas.DataFrame): DataFrame with scheme_category column
+        logger: Logger instance
+        
+    Returns:
+        pandas.DataFrame: DataFrame with enhanced categorization
+    """
+    df_enhanced = df.copy()
+    
+    # Initialize new columns
+    df_enhanced['scheme_category_level1'] = 'Others'
+    df_enhanced['scheme_category_level2'] = 'Others'
+    
+    # Process each category
+    total_processed = 0
+    pattern_stats = {
+        'Equity Scheme': 0,
+        'Debt Scheme': 0, 
+        'Hybrid Scheme': 0,
+        'Other Scheme': 0,
+        'Others': 0
+    }
+    
+    for idx, category in df_enhanced['scheme_category'].items():
+        if pd.isna(category) or category.strip() == '':
+            # Handle null/empty categories
+            df_enhanced.loc[idx, 'scheme_category_level1'] = 'Others'
+            df_enhanced.loc[idx, 'scheme_category_level2'] = 'Others'
+            pattern_stats['Others'] += 1
+        elif ' - ' in category:
+            # Split on first occurrence of ' - '
+            parts = category.split(' - ', 1)
+            level1 = parts[0].strip()
+            level2 = parts[1].strip() if len(parts) > 1 else level1
+            
+            # Standardize level 1 categories
+            if 'equity' in level1.lower():
+                level1_clean = 'Equity Scheme'
+            elif 'debt' in level1.lower():
+                level1_clean = 'Debt Scheme'
+            elif 'hybrid' in level1.lower():
+                level1_clean = 'Hybrid Scheme'
+            elif 'other' in level1.lower():
+                level1_clean = 'Other Scheme'
+            else:
+                level1_clean = 'Others'
+            
+            # Handle empty or error level 2
+            if not level2 or level2.lower() in ['error', 'null', 'na', '']:
+                level2 = level1_clean
+            
+            df_enhanced.loc[idx, 'scheme_category_level1'] = level1_clean
+            df_enhanced.loc[idx, 'scheme_category_level2'] = level2
+            pattern_stats[level1_clean] += 1
+        else:
+            # Categories without ' - ' pattern (like 'Income', 'Growth')
+            # These are legacy categories, classify them appropriately
+            category_lower = category.lower().strip()
+            
+            if category_lower in ['income', 'growth', 'dividend']:
+                # These are old naming conventions, likely mixed types
+                df_enhanced.loc[idx, 'scheme_category_level1'] = 'Others'
+                df_enhanced.loc[idx, 'scheme_category_level2'] = category.strip()
+            else:
+                # Other unstructured categories
+                df_enhanced.loc[idx, 'scheme_category_level1'] = 'Others'
+                df_enhanced.loc[idx, 'scheme_category_level2'] = category.strip()
+            
+            pattern_stats['Others'] += 1
+        
+        total_processed += 1
+    
+    # Log statistics
+    logger.info(f"📊 Enhanced categorization statistics:")
+    for category, count in pattern_stats.items():
+        if count > 0:
+            percentage = (count / total_processed) * 100
+            logger.info(f"   {category}: {count:,} schemes ({percentage:.1f}%)")
+    
+    # Log sample categorizations
+    logger.info("📋 Sample enhanced categorizations:")
+    sample_df = df_enhanced[['scheme_category', 'scheme_category_level1', 'scheme_category_level2']].drop_duplicates()
+    for i, row in sample_df.head(10).iterrows():
+        original = row['scheme_category'][:50] + '...' if len(str(row['scheme_category'])) > 50 else row['scheme_category']
+        logger.info(f"   '{original}' → L1: '{row['scheme_category_level1']}', L2: '{row['scheme_category_level2']}'")
+    
+    # Get unique counts for new columns
+    level1_unique = df_enhanced['scheme_category_level1'].nunique()
+    level2_unique = df_enhanced['scheme_category_level2'].nunique()
+    
+    logger.info(f"✅ Enhanced categorization completed:")
+    logger.info(f"   Level 1 categories: {level1_unique}")
+    logger.info(f"   Level 2 categories: {level2_unique}")
+    logger.info(f"   Total schemes processed: {total_processed:,}")
+    
+    return df_enhanced
+
+def detect_direct_plan(scheme_nav_name):
+    """
+    Detect if a scheme is Direct or Regular based on scheme_nav_name.
+    
+    Args:
+        scheme_nav_name (str): Scheme NAV name
+        
+    Returns:
+        bool: True if Direct plan, False if Regular plan or unclear
+    """
+    if pd.isna(scheme_nav_name) or not isinstance(scheme_nav_name, str):
+        return False
+    
+    name_lower = scheme_nav_name.lower().strip()
+    
+    # Direct plan indicators (case-insensitive)
+    direct_indicators = [
+        'direct',
+        'dir ',      # with space to avoid matching words like "director"
+        ' dir',      # with space prefix
+        '-dir-',     # with dashes
+        '-direct-',  # with dashes
+        '(dir)',     # in parentheses
+        '(direct)',  # in parentheses
+        'drct',      # abbreviated form
+    ]
+    
+    # Regular plan indicators (case-insensitive)
+    regular_indicators = [
+        'regular',
+        'reg ',      # with space to avoid matching words like "region"
+        ' reg',      # with space prefix
+        '-reg-',     # with dashes
+        '-regular-', # with dashes
+        '(reg)',     # in parentheses
+        '(regular)', # in parentheses
+        'rglr',      # abbreviated form
+    ]
+    
+    # Check for Direct indicators first (higher priority)
+    has_direct = any(indicator in name_lower for indicator in direct_indicators)
+    has_regular = any(indicator in name_lower for indicator in regular_indicators)
+    
+    # Priority logic: Direct wins if both are present
+    if has_direct:
+        return True
+    elif has_regular:
+        return False
+    else:
+        # Default: neither found, assume Regular
+        return False
+
+def enhance_direct_regular_detection(df, logger):
+    """
+    Add is_direct column to detect Direct vs Regular mutual fund plans.
+    
+    Args:
+        df (pandas.DataFrame): DataFrame with scheme_nav_name column
+        logger: Logger instance
+        
+    Returns:
+        pandas.DataFrame: DataFrame with is_direct column
+    """
+    df_enhanced = df.copy()
+    
+    if 'scheme_nav_name' not in df_enhanced.columns:
+        logger.warning("⚠️ scheme_nav_name column not found, skipping Direct/Regular detection")
+        df_enhanced['is_direct'] = False
+        return df_enhanced
+    
+    logger.info("🎯 Detecting Direct vs Regular plans...")
+    
+    # Apply detection logic
+    df_enhanced['is_direct'] = df_enhanced['scheme_nav_name'].apply(detect_direct_plan)
+    
+    # Calculate statistics
+    total_schemes = len(df_enhanced)
+    direct_count = df_enhanced['is_direct'].sum()
+    regular_count = total_schemes - direct_count
+    
+    # Log statistics
+    logger.info(f"📊 Direct vs Regular plan distribution:")
+    logger.info(f"   Direct plans: {direct_count:,} ({direct_count/total_schemes*100:.1f}%)")
+    logger.info(f"   Regular plans: {regular_count:,} ({regular_count/total_schemes*100:.1f}%)")
+    
+    # Show sample detections for verification
+    logger.info("📋 Sample Direct/Regular detections:")
+    
+    # Sample direct plans
+    direct_samples = df_enhanced[df_enhanced['is_direct'] == True]['scheme_nav_name'].head(5)
+    logger.info("   Direct plans detected:")
+    for i, name in enumerate(direct_samples, 1):
+        name_display = name[:70] + '...' if len(name) > 70 else name
+        logger.info(f"   {i}. {name_display}")
+    
+    # Sample regular plans  
+    regular_samples = df_enhanced[df_enhanced['is_direct'] == False]['scheme_nav_name'].head(5)
+    logger.info("   Regular plans detected:")
+    for i, name in enumerate(regular_samples, 1):
+        name_display = name[:70] + '...' if len(name) > 70 else name
+        logger.info(f"   {i}. {name_display}")
+    
+    logger.info(f"✅ Direct/Regular detection completed for {total_schemes:,} schemes")
+    
+    return df_enhanced
+
+def detect_growth_plan(scheme_nav_name):
+    """
+    Detect if a scheme is Growth or Dividend/IDCW based on scheme_nav_name.
+    
+    Growth plans reinvest dividends (compounding), while IDCW/Dividend plans
+    distribute them (affecting NAV comparability).
+    
+    Args:
+        scheme_nav_name (str): Scheme NAV name
+        
+    Returns:
+        bool: True if Growth plan, False if Dividend/IDCW plan
+    """
+    if pd.isna(scheme_nav_name) or not isinstance(scheme_nav_name, str):
+        return False
+    
+    name_lower = scheme_nav_name.lower().strip()
+    
+    # Non-growth (dividend/payout) indicators (higher priority)
+    non_growth_indicators = [
+        'idcw',           # Income Distribution cum Capital Withdrawal
+        'dividend',       # Traditional dividend plans
+        'income',         # Income distribution
+        'monthly',        # Monthly payout
+        'quarterly',      # Quarterly payout  
+        'weekly',         # Weekly payout
+        'daily',          # Daily payout
+        'annual',         # Annual payout
+        'payout',         # Generic payout term
+        'distribution',   # Distribution plans
+        'div ',           # Abbreviated dividend with space
+        ' div',           # Abbreviated dividend with space prefix
+        'div)',           # Abbreviated dividend in parentheses
+        '(div)',          # Abbreviated dividend in full parentheses
+    ]
+    
+    # Growth plan indicators
+    growth_indicators = [
+        'growth',
+        'grwth',          # Abbreviated form
+        'gr ',            # Very abbreviated with space
+        ' gr',            # Very abbreviated with space prefix  
+        'gr)',            # Very abbreviated in parentheses
+        '(gr)',           # Very abbreviated in full parentheses
+        'growt',          # Partial match for typos
+        'accum',          # Accumulation (alternate term for growth)
+        'accumulation',   # Full accumulation term
+    ]
+    
+    # Check for non-growth indicators first (higher priority)
+    has_non_growth = any(indicator in name_lower for indicator in non_growth_indicators)
+    has_growth = any(indicator in name_lower for indicator in growth_indicators)
+    
+    # Priority logic: Non-growth indicators trump growth indicators
+    if has_non_growth:
+        return False
+    elif has_growth:
+        return True
+    else:
+        # Default: if unclear, assume dividend/IDCW (conservative approach)
+        return False
+
+def enhance_growth_plan_detection(df, logger):
+    """
+    Add is_growth_plan column to detect Growth vs Dividend/IDCW mutual fund plans.
+    
+    Args:
+        df (pandas.DataFrame): DataFrame with scheme_nav_name column
+        logger: Logger instance
+        
+    Returns:
+        pandas.DataFrame: DataFrame with is_growth_plan column
+    """
+    df_enhanced = df.copy()
+    
+    if 'scheme_nav_name' not in df_enhanced.columns:
+        logger.warning("⚠️ scheme_nav_name column not found, skipping Growth plan detection")
+        df_enhanced['is_growth_plan'] = False
+        return df_enhanced
+    
+    logger.info("🌱 Detecting Growth vs Dividend/IDCW plans...")
+    
+    # Apply detection logic
+    df_enhanced['is_growth_plan'] = df_enhanced['scheme_nav_name'].apply(detect_growth_plan)
+    
+    # Calculate statistics
+    total_schemes = len(df_enhanced)
+    growth_count = df_enhanced['is_growth_plan'].sum()
+    dividend_count = total_schemes - growth_count
+    
+    # Log statistics
+    logger.info(f"📊 Growth vs Dividend/IDCW plan distribution:")
+    logger.info(f"   Growth plans: {growth_count:,} ({growth_count/total_schemes*100:.1f}%)")
+    logger.info(f"   Dividend/IDCW plans: {dividend_count:,} ({dividend_count/total_schemes*100:.1f}%)")
+    
+    # Show sample detections for verification
+    logger.info("📋 Sample Growth/Dividend detections:")
+    
+    # Sample growth plans
+    growth_samples = df_enhanced[df_enhanced['is_growth_plan'] == True]['scheme_nav_name'].head(5)
+    logger.info("   Growth plans detected:")
+    for i, name in enumerate(growth_samples, 1):
+        name_display = name[:70] + '...' if len(name) > 70 else name
+        logger.info(f"   {i}. {name_display}")
+    
+    # Sample dividend/IDCW plans  
+    dividend_samples = df_enhanced[df_enhanced['is_growth_plan'] == False]['scheme_nav_name'].head(5)
+    logger.info("   Dividend/IDCW plans detected:")
+    for i, name in enumerate(dividend_samples, 1):
+        name_display = name[:70] + '...' if len(name) > 70 else name
+        logger.info(f"   {i}. {name_display}")
+    
+    logger.info(f"✅ Growth plan detection completed for {total_schemes:,} schemes")
+    
+    return df_enhanced
+
 def clean_scheme_metadata(df):
     """
     Clean and standardize scheme metadata.
@@ -171,6 +498,20 @@ def clean_scheme_metadata(df):
         # For now, just rename to isin_growth
         clean_df = clean_df.rename(columns={'isin_codes': 'isin_growth'})
     
+    # Enhanced categorization - extract scheme category levels
+    if 'scheme_category' in clean_df.columns:
+        logger.info("🏷️ Extracting enhanced scheme categorization...")
+        clean_df = enhance_scheme_categorization(clean_df, logger)
+    
+    # Direct vs Regular plan detection
+    if 'scheme_nav_name' in clean_df.columns:
+        logger.info("🎯 Detecting Direct vs Regular plans...")
+        clean_df = enhance_direct_regular_detection(clean_df, logger)
+        
+        # Growth vs Dividend/IDCW plan detection
+        logger.info("🌱 Detecting Growth vs Dividend/IDCW plans...")
+        clean_df = enhance_growth_plan_detection(clean_df, logger)
+    
     # Remove completely empty rows
     clean_df = clean_df.dropna(how='all')
     final_count = len(clean_df)
@@ -278,7 +619,14 @@ def save_scheme_metadata(df):
     
     try:
         # Use categorical types for memory efficiency
-        categorical_columns = ['amc_name', 'scheme_name', 'scheme_type', 'scheme_category', 'scheme_nav_name']
+        categorical_columns = ['amc_name', 'scheme_name', 'scheme_type', 'scheme_category', 'scheme_nav_name',
+                             'scheme_category_level1', 'scheme_category_level2']
+        
+        # Boolean columns (will be converted to bool, not category)
+        boolean_columns = ['is_direct', 'is_growth_plan']
+        for col in boolean_columns:
+            if col in df.columns:
+                df[col] = df[col].astype('bool')
         
         df_save = df.copy()
         for col in categorical_columns:

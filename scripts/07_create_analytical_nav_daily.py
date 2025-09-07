@@ -104,10 +104,31 @@ def create_analytical_nav_daily(nav_df, metadata_df):
         
         # Perform inner join on scheme_code
         # Use suffixes to handle column name conflicts
+        # Include enhanced categorization columns if available
+        metadata_cols = ['scheme_code', 'scheme_name', 'amc_name', 'scheme_type', 
+                        'scheme_category', 'launch_date', 'minimum_amount']
+        
+        # Add enhanced categorization columns if they exist
+        if 'scheme_category_level1' in metadata_df.columns:
+            metadata_cols.append('scheme_category_level1')
+            logger.info("✅ Found enhanced categorization: scheme_category_level1")
+        if 'scheme_category_level2' in metadata_df.columns:
+            metadata_cols.append('scheme_category_level2')
+            logger.info("✅ Found enhanced categorization: scheme_category_level2")
+        
+        # Add Direct/Regular plan indicator if available
+        if 'is_direct' in metadata_df.columns:
+            metadata_cols.append('is_direct')
+            logger.info("✅ Found Direct/Regular plan indicator: is_direct")
+        
+        # Add Growth/Dividend plan indicator if available
+        if 'is_growth_plan' in metadata_df.columns:
+            metadata_cols.append('is_growth_plan')
+            logger.info("✅ Found Growth/Dividend plan indicator: is_growth_plan")
+        
         analytical_df = pd.merge(
             nav_df,
-            metadata_df[['scheme_code', 'scheme_name', 'amc_name', 'scheme_type', 
-                        'scheme_category', 'launch_date', 'minimum_amount']],
+            metadata_df[metadata_cols],
             on='scheme_code',
             how='inner',
             suffixes=('_nav', '_meta')
@@ -137,6 +158,12 @@ def create_analytical_nav_daily(nav_df, metadata_df):
         # Optimize column types for storage efficiency  
         logger.info("🔧 Optimizing column types...")
         categorical_cols = ['scheme_name', 'amc_name', 'scheme_type', 'scheme_category', 'weekday']
+        
+        # Add enhanced categorization columns if they exist
+        if 'scheme_category_level1' in analytical_df.columns:
+            categorical_cols.append('scheme_category_level1')
+        if 'scheme_category_level2' in analytical_df.columns:
+            categorical_cols.append('scheme_category_level2')
         
         for col in categorical_cols:
             if col in analytical_df.columns:
