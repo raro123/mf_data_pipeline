@@ -40,19 +40,13 @@ def clean_nav_file(file_path):
         logger.info(f"Processing {file_path.name} - {len(df):,} raw records")
         
         # Filter out header rows and category separators
-        clean_df = df[
+        clean_df = (df[
             df['Scheme Code'].notna() & 
             df['Date'].notna() & 
             ~df['Scheme Code'].str.contains('Open Ended|Close Ended|Interval Fund|Fund of Funds', na=False) &
             ~df['Scheme Code'].str.contains('Mutual Fund', na=False)
-        ].copy()
-        
-        if clean_df.empty:
-            logger.warning(f"⚠️ No valid data found in {file_path}")
-            return None
-        
-        # Create standardized column names
-        clean_df = clean_df.rename(columns={
+        ]
+         .rename(columns={
             'Scheme Code': 'scheme_code',
             'Scheme Name': 'scheme_name',
             'ISIN Div Payout/ISIN Growth': 'isin_growth', 
@@ -62,37 +56,14 @@ def clean_nav_file(file_path):
             'Sale Price': 'sale_price',
             'Date': 'date'
         })
-        
-        # Convert data types
-        clean_df['scheme_code'] = clean_df['scheme_code'].astype(str)
-        clean_df['date'] = pd.to_datetime(clean_df['date'], format='%d-%b-%Y', errors='coerce')
-        
-        # Convert numeric columns with validation
-        numeric_cols = ['nav', 'repurchase_price', 'sale_price']
-        for col in numeric_cols:
-            clean_df[col] = pd.to_numeric(clean_df[col], errors='coerce')
-        
-        # Apply validation rules from config
-        before_count = len(clean_df)
-        
-        # Filter invalid NAV values
-        valid_nav = (
-            (clean_df['nav'] >= Validation.MIN_NAV_VALUE) & 
-            (clean_df['nav'] <= Validation.MAX_NAV_VALUE)
+         .assign(scheme_code=lambda x: x['scheme_code'].astype(str),
+                 date = lambda x: pd.to_datetime(x['date'], format='%d-%b-%Y', errors='coerce'),
+                 nav = lambda x: pd.to_numeric(x['nav'], errors='coerce'),
+                 repurchase_price = lambda x: pd.to_numeric(x['repurchase_price'], errors='coerce'),
+                 sale_price = lambda x: pd.to_numeric(x['sale_price'], errors='coerce')             
         )
-        clean_df = clean_df[valid_nav]
+        )
         
-        # Filter invalid dates  
-        valid_dates = clean_df['date'].notna()
-        clean_df = clean_df[valid_dates]
-        
-        after_count = len(clean_df)
-        
-        if before_count != after_count:
-            filtered = before_count - after_count
-            logger.info(f"   Filtered {filtered:,} invalid records ({filtered/before_count*100:.1f}%)")
-        
-        logger.info(f"✅ Cleaned {file_path.name}: {after_count:,} valid records")
         return clean_df
         
     except Exception as e:
@@ -179,72 +150,9 @@ def combine_all_nav_files_memory_efficient():
     
     logger.info(f"📊 Found {len(csv_files)} CSV files to process")
     
-    # Use configured batch size
-    batch_size = Processing.HISTORICAL_BATCH_SIZE
-    logger.info(f"⚙️ Processing in batches of {batch_size} files")
-    
-    # Process files in batches
-    batch_num = 1
-    file_index = 0
-    
-    while file_index < len(csv_files):
-        # Get files for this batch
-        batch_files = csv_files[file_index:file_index + batch_size]
-        
-        # Process batch
-        batch_df = process_batch(batch_files, batch_num)
-        
-        if batch_df is None:
-            logger.error(f"❌ Failed to process batch {batch_num}")
-            return False
-        
-        # Save batch to Parquet
-        from config.settings import get_batch_file_path
-        batch_file = get_batch_file_path(batch_num)
-        
-        try:
-            # Use configured compression
-            batch_df.to_parquet(
-                batch_file, 
-                index=False, 
-                compression=Processing.PARQUET_COMPRESSION
-            )
-            
-            file_size_mb = batch_file.stat().st_size / (1024 * 1024)
-            log_file_operation(logger, "saved", batch_file, True, file_size_mb)
-            
-            logger.info(f"📊 Batch {batch_num} summary:")
-            logger.info(f"   Files processed: {len(batch_files)}")
-            logger.info(f"   Records: {len(batch_df):,}")
-            logger.info(f"   Date range: {batch_df['date'].min().date()} to {batch_df['date'].max().date()}")
-            logger.info(f"   Unique schemes: {batch_df['scheme_code'].nunique():,}")
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to save batch {batch_num}: {e}")
-            return False
-        
-        # Clean up memory
-        del batch_df
-        gc.collect()
-        
-        # Move to next batch
-        file_index += batch_size
-        batch_num += 1
-    
-    logger.info("🎉 All batches processed successfully!")
-    
-    # Final summary
-    total_batches = batch_num - 1
-    logger.info("📊 Processing Summary:")
-    logger.info(f"   Total files: {len(csv_files)}")
-    logger.info(f"   Total batches: {total_batches}")
-    logger.info(f"   Output directory: {output_dir}")
-    
-    # Calculate total output size
-    total_size = sum(f.stat().st_size for f in output_dir.glob("batch_*.parquet")) / (1024 * 1024)
-    logger.info(f"   Total output size: {total_size:.1f} MB")
-    
-    return True
+    combined_df = pd.concat((clean_nav_file(Path(fp)) for fp in csv_files), ignore_index=True)
+    return combined_df
+    #to_parquet('.data/processed/nav_historical/nav_historical.parquet', index=False, compression=Processing.PARQUET_COMPRESSION)
 
 def main():
     """Main function to process all NAV files."""
