@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
 """
-Historical NAV Data Cleaner
+Historical NAV Data Cleaner with DuckDB
 
-Cleans raw historical NAV CSV files and converts to optimized Parquet batches.
-This script has been refactored to use centralized configuration and logging.
+Cleans raw historical NAV CSV files and creates a single merged Parquet file using DuckDB.
+This approach is memory-efficient and avoids the complexity of batch processing.
 """
 
+import duckdb
 import pandas as pd
 import sys
 from pathlib import Path
 from datetime import datetime
-from concurrent.futures import ProcessPoolExecutor, as_completed
-import multiprocessing
-import gc
 
 # Add project root to Python path
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Import centralized configuration
 from config.settings import Paths, Processing, Validation
-from utils.logging_setup import get_historical_clean_logger, log_script_start, log_script_end, log_data_summary, log_file_operation
+from utils.logging_setup import get_historical_clean_logger, log_script_start, log_script_end, log_file_operation
 
 # Initialize logger
 logger = get_historical_clean_logger(__name__)
