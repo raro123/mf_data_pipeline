@@ -9,6 +9,7 @@ them in individual scripts.
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import duckdb
 
 # Load environment variables
 load_dotenv()
@@ -69,6 +70,44 @@ class Paths:
         
         for directory in directories:
             directory.mkdir(parents=True, exist_ok=True)
+            
+# =============================================================================
+# R2 CONFIGURATION
+# =============================================================================
+
+BUCKET_NAME = 'financial-data-store'
+ASSET_CLASS = 'mutual_funds'
+
+
+class R2:
+    """Cloud storage (R2) configuration."""
+    def __init__(self,bucket_name=BUCKET_NAME,asset_class= ASSET_CLASS):
+        self.bucket_name = bucket_name
+        self.asset_class = asset_class
+    
+    def get_full_path(self,clean_raw, file_name,file_extension='parquet'):
+        return f"r2://{self.bucket_name}/{self.asset_class}/{clean_raw}/{file_name}.{file_extension}"
+    
+    # R2 Credentials from environment variables
+    ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID", "")
+    SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY", "")
+    ACCOUNT_ID = os.getenv("R2_ACCOUNT_ID", "")
+    
+    def setup_connection(self):
+        con = duckdb.connect()
+        con.install_extension('httpfs')
+        con.load_extension('httpfs')
+        """Setup R2 connection using environment variables."""
+        con.sql(f"""
+            CREATE OR REPLACE SECRET (
+        TYPE r2,
+        KEY_ID '{self.ACCESS_KEY_ID}',
+        SECRET '{self.SECRET_ACCESS_KEY}',
+        ACCOUNT_ID '{self.ACCOUNT_ID}'
+    );
+        """)
+        return con
+
 
 # =============================================================================
 # API CONFIGURATION
