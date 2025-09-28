@@ -87,6 +87,11 @@ data/
 output/
 raw/
 
+# Large data files
+*.parquet
+*.csv
+mutual_funds_db
+
 # SQL database
 *.sqlite3
 *.db
