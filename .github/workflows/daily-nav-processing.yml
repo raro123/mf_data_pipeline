@@ -27,12 +27,18 @@ jobs:
         pip install duckdb  # Add duckdb since it's used in scripts
 
     - name: Create required directories
+      env:
+        PYTHONPATH: ${{ github.workspace }}
       run: |
+        cd ${{ github.workspace }}
         python -c "from config.settings import initialize_project; initialize_project()"
 
     - name: Run daily NAV transform script
       id: daily_transform
       env:
+        # Python path
+        PYTHONPATH: ${{ github.workspace }}
+
         # R2 (Cloudflare) credentials
         R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
         R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -54,11 +60,15 @@ jobs:
 
       run: |
         echo "🚀 Starting daily NAV transform script..."
+        cd ${{ github.workspace }}
         python scripts/03_daily_nav_transform.py
 
     - name: Run daily NAV clean script
       if: steps.daily_transform.outcome == 'success'
       env:
+        # Python path
+        PYTHONPATH: ${{ github.workspace }}
+
         # R2 (Cloudflare) credentials
         R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
         R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -70,6 +80,7 @@ jobs:
 
       run: |
         echo "🧹 Starting daily NAV clean script..."
+        cd ${{ github.workspace }}
         python scripts/daily_nav_clean.py
 
     - name: Upload logs on failure
