@@ -1,0 +1,92 @@
+name: Daily NAV Data Processing
+
+on:
+  schedule:
+    # Run at 11:00 PM UTC daily (6:30 AM IST next day, accounting for market data availability)
+    - cron: '0 23 * * *'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  process-daily-nav:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install duckdb  # Add duckdb since it's used in scripts
+
+    - name: Create required directories
+      run: |
+        python -c "from config.settings import initialize_project; initialize_project()"
+
+    - name: Run daily NAV transform script
+      id: daily_transform
+      env:
+        # R2 (Cloudflare) credentials
+        R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+        R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+
+        # API configuration
+        AMFI_NAV_TIMEOUT: ${{ vars.AMFI_NAV_TIMEOUT || '30' }}
+        AMFI_SCHEME_TIMEOUT: ${{ vars.AMFI_SCHEME_TIMEOUT || '30' }}
+        MAX_RETRIES: ${{ vars.MAX_RETRIES || '3' }}
+        RETRY_DELAY: ${{ vars.RETRY_DELAY || '5' }}
+
+        # Processing configuration
+        HISTORICAL_FETCH_DAYS: ${{ vars.HISTORICAL_FETCH_DAYS || '90' }}
+        CHUNK_SIZE: ${{ vars.CHUNK_SIZE || '10000' }}
+
+        # Environment settings
+        ENVIRONMENT: production
+        LOG_LEVEL: ${{ vars.LOG_LEVEL || 'INFO' }}
+
+      run: |
+        echo "🚀 Starting daily NAV transform script..."
+        python scripts/03_daily_nav_transform.py
+
+    - name: Run daily NAV clean script
+      if: steps.daily_transform.outcome == 'success'
+      env:
+        # R2 (Cloudflare) credentials
+        R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+        R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+
+        # Environment settings
+        ENVIRONMENT: production
+        LOG_LEVEL: ${{ vars.LOG_LEVEL || 'INFO' }}
+
+      run: |
+        echo "🧹 Starting daily NAV clean script..."
+        python scripts/daily_nav_clean.py
+
+    - name: Upload logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: processing-logs-${{ github.run_number }}
+        path: logs/
+        retention-days: 7
+
+    - name: Notify on success
+      if: success()
+      run: |
+        echo "✅ Daily NAV processing completed successfully at $(date)"
+
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "❌ Daily NAV processing failed at $(date)"
+        echo "Check the logs artifact for details"
