@@ -166,7 +166,7 @@ def main():
     try:
         r2 = R2()
         conn = r2.setup_connection()
-        historical_path = r2.get_full_path('raw', 'nav_historical')
+        historical_path = r2.get_full_path('clean', 'nav_daily_growth_plan')
         max_date_available = conn.read_parquet(
             historical_path).max('date').execute().df().iloc[0, 0]
         dates = get_missing_dates(max_date_available)
