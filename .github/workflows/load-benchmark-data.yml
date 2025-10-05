@@ -1,0 +1,87 @@
+name: Load Benchmark Data
+
+on:
+  schedule:
+    # Run daily at 6:30 PM UTC (12:00 AM IST next day)
+    - cron: '30 18 * * *'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  load-benchmark-data:
+    runs-on: ubuntu-latest
+
+    # Global environment variables for the job
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      # R2 (Cloudflare) credentials
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      # Environment settings
+      ENVIRONMENT: production
+      LOG_LEVEL: ${{ vars.LOG_LEVEL || 'INFO' }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        # Shallow clone for faster checkout (only latest commit needed)
+        fetch-depth: 1
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+        cache: 'pip'
+        cache-dependency-path: 'requirements.txt'
+
+    - name: Cache Python packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        # Faster pip installation with optimizations
+        python -m pip install --upgrade pip --disable-pip-version-check --no-warn-script-location
+
+        # Install requirements with optimizations
+        pip install --disable-pip-version-check -r requirements.txt
+        pip install --disable-pip-version-check duckdb
+
+        # Verify critical imports quickly
+        python -c "import duckdb; print('✅ Dependencies verified')"
+
+    - name: Create required directories
+      run: |
+        cd ${{ github.workspace }}
+        python -c "from config.settings import initialize_project; initialize_project()"
+
+    - name: Load benchmark data
+      id: load_benchmark
+      run: |
+        echo "🚀 Starting benchmark data load..."
+        cd ${{ github.workspace }}
+        python scripts/load_benchmark_data.py
+
+    - name: Upload logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-logs-${{ github.run_number }}
+        path: logs/
+        retention-days: 7
+
+    - name: Notify on success
+      if: success()
+      run: |
+        echo "✅ Benchmark data loading completed successfully at $(date)"
+
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "❌ Benchmark data loading failed at $(date)"
+        echo "Check the logs artifact for details"
