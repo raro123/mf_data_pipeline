@@ -2,8 +2,8 @@ name: Daily NAV Data Processing
 
 on:
   schedule:
-    # Run at 11:00 PM UTC daily (6:30 AM IST next day, accounting for market data availability)
-    - cron: '0 23 * * *'
+    # Run at 11:59 PM UTC daily (7:29 AM IST next day, accounting for market data availability)
+    - cron: '59 23 * * *'
   workflow_dispatch:  # Allow manual triggering
 
 jobs:
