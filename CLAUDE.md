@@ -100,9 +100,8 @@ data/
 ```
 
 ### Key Files
-- `config/settings.py` - **Central configuration hub** for all paths, URLs, and parameters
+- `config/settings.py` - **Central configuration hub** for all paths, URLs, and parameters (includes R2 storage setup)
 - `utils/logging_setup.py` - Centralized logging configuration
-- `src/common/storage.py` - R2 storage utilities
 
 ## Configuration System
 
