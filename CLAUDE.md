@@ -239,6 +239,13 @@ python -c "from config.settings import initialize_project; initialize_project()"
 - Parquet compression reduces storage by ~70% vs CSV
 - Categorical dtypes for repeated string values
 
+### Pandas coding style
+ - use chaining in pandas as long as possible
+ - use best practice coding for pandas - avoid code smells and non pythonic code
+ - avoid use of icons/emojis in code comments
+ - use comments in case of complex logic or explaining a section. Avoid over comments
+ - prefer inline comments in case of short comments
+
 ## Key Data Sources
 
 - **AMFI NAV API:** `https://www.amfiindia.com/spages/NAVAll.txt`
