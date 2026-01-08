@@ -47,6 +47,8 @@ class Paths:
     # Specific file paths
     SCHEME_METADATA_CLEAN = PROCESSED_SCHEME_METADATA / "amfi_scheme_metadata.parquet"
     SCHEME_METADATA_CSV = PROCESSED_SCHEME_METADATA / "amfi_scheme_metadata.csv"
+    SCHEME_MASTERDATA = PROCESSED_SCHEME_METADATA / "scheme_masterdata.parquet"
+    SCHEME_MASTERDATA_CSV = PROCESSED_SCHEME_METADATA / "scheme_masterdata.csv"
     COMBINED_NAV_TABLE = NAV_COMBINED / "raw_nav_table.parquet"
     
     # Create all directories

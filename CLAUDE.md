@@ -66,7 +66,10 @@ python -m scripts.05_extract_scheme_metadata
 # 4. Process metadata with Direct/Regular and Growth/Dividend classification
 python -m scripts.06_clean_scheme_metadata
 
-# 5. Clean and categorize metadata
+# 5. Build comprehensive scheme masterdata (never loses schemes)
+python -m scripts.07_build_scheme_masterdata
+
+# 6. Clean and categorize metadata
 python -m scripts.clean_metadata
 ```
 
@@ -142,6 +145,21 @@ DuckDB handles:
 - R2 integration via httpfs extension
 
 ## Data Processing Patterns
+
+### Scheme Masterdata
+The pipeline maintains a comprehensive masterdata of all schemes ever seen:
+- **Never loses schemes** - Inactive schemes are marked but preserved
+- **Tracks lifecycle** - Records first_seen_date and last_seen_date
+- **Updates attributes** - Scheme details are updated to latest values
+- **Active/Inactive flag** - Distinguishes current vs historical schemes
+
+**Key columns:**
+- `first_seen_date` - When the scheme first appeared (uses launch_date for initial build)
+- `last_seen_date` - Last time the scheme was seen in AMFI data
+- `is_active` - True if scheme appears in latest data, False if disappeared
+- `attribute_last_updated` - When scheme details were last updated
+
+Use `scheme_masterdata.parquet` for complete scheme history analysis.
 
 ### Scheme Classification
 The pipeline automatically detects:
