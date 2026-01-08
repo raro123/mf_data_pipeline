@@ -23,35 +23,35 @@
 ### Initial Setup (One-time only)
 ```bash
 # 1. Download historical data (if not already done)
-python scripts/01_fetch_historical_nav.py
+python -m scripts.01_fetch_historical_nav
 
 # 2. Process ALL historical CSV files (2006-2025) using DuckDB
-python scripts/02_clean_historical_nav_duckdb.py
+python -m scripts.02_clean_historical_nav_duckdb
 ```
 
 ### Daily/Weekly Pipeline
 ```bash
 # 1. Get latest daily NAV data
-python scripts/03_fetch_daily_nav.py
+python -m scripts.03_fetch_daily_nav
 
 # 2. Get fresh metadata (weekly recommended)
-python scripts/05_extract_scheme_metadata.py
+python -m scripts.05_extract_scheme_metadata
 
 # 3. Process metadata with enhanced classifications
-python scripts/06_clean_scheme_metadata.py
+python -m scripts.06_clean_scheme_metadata
 
 # 4. Create final analytical dataset
-python scripts/07_create_analytical_nav_daily_duckdb.py
+python -m scripts.07_create_analytical_nav_daily_duckdb
 ```
 
 ### Full Refresh Pipeline
 ```bash
 # If you need to rebuild everything from scratch:
-python scripts/02_clean_historical_nav_duckdb.py  # Historical data
-python scripts/03_fetch_daily_nav.py              # Daily updates  
-python scripts/05_extract_scheme_metadata.py      # Fresh metadata
-python scripts/06_clean_scheme_metadata.py        # Enhanced processing
-python scripts/07_create_analytical_nav_daily_duckdb.py  # Final analytical view
+python -m scripts.02_clean_historical_nav_duckdb  # Historical data
+python -m scripts.03_fetch_daily_nav              # Daily updates
+python -m scripts.05_extract_scheme_metadata      # Fresh metadata
+python -m scripts.06_clean_scheme_metadata        # Enhanced processing
+python -m scripts.07_create_analytical_nav_daily_duckdb  # Final analytical view
 ```
 
 ---

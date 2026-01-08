@@ -73,14 +73,14 @@ jobs:
       run: |
         echo "🚀 Starting daily NAV transform script..."
         cd ${{ github.workspace }}
-        python scripts/03_daily_nav_transform.py
+        python -m scripts.03_daily_nav_transform
 
     - name: Run daily NAV clean script
       if: steps.daily_transform.outcome == 'success'
       run: |
         echo "🧹 Starting daily NAV clean script..."
         cd ${{ github.workspace }}
-        python scripts/daily_nav_clean.py
+        python -m scripts.daily_nav_clean
 
     - name: Upload logs on failure
       if: failure()

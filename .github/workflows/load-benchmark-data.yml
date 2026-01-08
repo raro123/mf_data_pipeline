@@ -65,7 +65,7 @@ jobs:
       run: |
         echo "🚀 Starting benchmark data load..."
         cd ${{ github.workspace }}
-        python scripts/load_benchmark_data.py
+        python -m scripts.load_benchmark_data
 
     - name: Upload logs on failure
       if: failure()

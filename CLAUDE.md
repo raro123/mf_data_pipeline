@@ -46,37 +46,37 @@ Optional configuration (see `config/settings.py` for defaults):
 **One-time Initial Setup:**
 ```bash
 # 1. Fetch historical NAV data from AMFI (2006-present)
-python scripts/fetch_historical_nav.py
+python -m scripts.fetch_historical_nav
 
 # 2. Process all historical CSV files into Parquet using DuckDB
-python scripts/02_historical_nav_transform.py
+python -m scripts.02_historical_nav_transform
 ```
 
 **Daily/Regular Pipeline:**
 ```bash
 # 1. Fetch latest daily NAV data with gap-filling
-python scripts/03_daily_nav_transform.py
+python -m scripts.03_daily_nav_transform
 
 # 2. Clean daily NAV data
-python scripts/daily_nav_clean.py
+python -m scripts.daily_nav_clean
 
 # 3. Extract fresh scheme metadata (run weekly)
-python scripts/05_extract_scheme_metadata.py
+python -m scripts.05_extract_scheme_metadata
 
 # 4. Process metadata with Direct/Regular and Growth/Dividend classification
-python scripts/06_clean_scheme_metadata.py
+python -m scripts.06_clean_scheme_metadata
 
 # 5. Clean and categorize metadata
-python scripts/clean_metadata.py
+python -m scripts.clean_metadata
 ```
 
 **Optional:**
 ```bash
 # Ingest Zerodha mutual fund data (separate workflow)
-python scripts/ingest_zerodha_mf.py
+python -m scripts.ingest_zerodha_mf
 
 # Load benchmark data
-python scripts/load_benchmark_data.py
+python -m scripts.load_benchmark_data
 ```
 
 ### Archived Scripts

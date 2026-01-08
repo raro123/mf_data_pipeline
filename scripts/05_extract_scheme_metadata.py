@@ -8,15 +8,10 @@ This script has been refactored to use centralized configuration and logging.
 
 import requests
 import pandas as pd
-import sys
 from pathlib import Path
 from datetime import datetime
 from io import StringIO
 
-# Add project root to Python path
-sys.path.append(str(Path(__file__).parent.parent))
-
-# Import centralized configuration
 from config.settings import Paths, API
 from utils.logging_setup import get_extract_metadata_logger, log_script_start, log_script_end, log_file_operation
 

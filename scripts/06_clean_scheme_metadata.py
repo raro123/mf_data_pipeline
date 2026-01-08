@@ -7,10 +7,6 @@ Refactored for pandas chaining, vectorized operations, and minimal logging.
 """
 
 import pandas as pd
-import sys
-from pathlib import Path
-
-sys.path.append(str(Path(__file__).parent.parent))
 
 from config.settings import Paths, Processing
 from utils.logging_setup import get_clean_metadata_logger, log_script_start, log_script_end, log_file_operation
