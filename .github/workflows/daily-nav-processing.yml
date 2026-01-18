@@ -71,14 +71,14 @@ jobs:
     - name: Run daily NAV transform script
       id: daily_transform
       run: |
-        echo "🚀 Starting daily NAV transform script..."
+        echo "Starting daily NAV transform script..."
         cd ${{ github.workspace }}
-        python -m scripts.03_daily_nav_transform
+        python -m scripts.fetch_daily_nav
 
     - name: Run daily NAV clean script
       if: steps.daily_transform.outcome == 'success'
       run: |
-        echo "🧹 Starting daily NAV clean script..."
+        echo "Starting daily NAV clean script..."
         cd ${{ github.workspace }}
         python -m scripts.daily_nav_clean
 

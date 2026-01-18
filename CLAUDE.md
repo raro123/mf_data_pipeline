@@ -49,28 +49,25 @@ Optional configuration (see `config/settings.py` for defaults):
 python -m scripts.fetch_historical_nav
 
 # 2. Process all historical CSV files into Parquet using DuckDB
-python -m scripts.02_historical_nav_transform
+python -m scripts.transform_historical_nav
 ```
 
 **Daily/Regular Pipeline:**
 ```bash
 # 1. Fetch latest daily NAV data with gap-filling
-python -m scripts.03_daily_nav_transform
+python -m scripts.fetch_daily_nav
 
 # 2. Clean daily NAV data
 python -m scripts.daily_nav_clean
 
 # 3. Extract fresh scheme metadata (run weekly)
-python -m scripts.05_extract_scheme_metadata
+python -m scripts.extract_scheme_metadata
 
 # 4. Process metadata with Direct/Regular and Growth/Dividend classification
-python -m scripts.06_clean_scheme_metadata
+python -m scripts.clean_scheme_metadata
 
 # 5. Build comprehensive scheme masterdata (never loses schemes)
-python -m scripts.07_build_scheme_masterdata
-
-# 6. Clean and categorize metadata
-python -m scripts.clean_metadata
+python -m scripts.build_scheme_masterdata
 ```
 
 **Optional:**
@@ -182,7 +179,7 @@ Two workflows automate the pipeline:
 ### Daily NAV Processing
 **File:** `.github/workflows/daily-nav-processing.yml`
 - **Schedule:** 11:00 PM UTC daily (6:30 AM IST)
-- **Runs:** `03_daily_nav_transform.py` → `daily_nav_clean.py`
+- **Runs:** `fetch_daily_nav.py` → `daily_nav_clean.py`
 - **Manual trigger:** Available via workflow_dispatch
 
 ### Benchmark Data Loading
@@ -215,9 +212,9 @@ Logs are written to `logs/` directory with patterns defined in `config/settings.
 
 ```bash
 # Run the complete daily pipeline
-python scripts/03_daily_nav_transform.py && \
-python scripts/daily_nav_clean.py && \
-python scripts/06_clean_scheme_metadata.py
+python -m scripts.fetch_daily_nav && \
+python -m scripts.daily_nav_clean && \
+python -m scripts.clean_scheme_metadata
 
 # Check pipeline status by viewing logs
 ls -lh logs/
@@ -237,7 +234,7 @@ python -c "from config.settings import initialize_project; initialize_project()"
 ### Adding New Scripts
 1. Import from `config.settings` for all configuration
 2. Use `utils.logging_setup` for logging
-3. Follow the pattern in existing scripts (see `03_daily_nav_transform.py`)
+3. Follow the pattern in existing scripts (see `fetch_daily_nav.py`)
 4. Add script to appropriate section in `PIPELINE_EXECUTION_ORDER.md`
 
 ### Modifying Configuration
