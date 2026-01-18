@@ -6,6 +6,7 @@ Fetches current NAV data from AMFI with gap-filling and weekend skip logic.
 This script has been refactored to use centralized configuration and logging.
 """
 
+import argparse
 import requests
 import pandas as pd
 import time
@@ -13,6 +14,12 @@ from datetime import datetime, date, timedelta
 from io import StringIO
 from config.settings import R2, API
 from utils.nav_helpers import NAV_COLUMNS, clean_nav_dataframe, save_to_parquet
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Fetch daily NAV data from AMFI')
+    parser.add_argument('--date', type=str, help='Specific date to fetch (YYYYMMDD format)')
+    return parser.parse_args()
 
 
 def fetch_daily_nav_data(start_date_str: str) -> pd.DataFrame:
@@ -95,13 +102,21 @@ def get_missing_dates(latest_historical_date):
 
 
 def main():
+    args = parse_args()
+
     try:
         r2 = R2()
         conn = r2.setup_connection()
-        historical_path = r2.get_full_path('clean', 'nav_daily_growth_plan')
-        max_date_available = conn.read_parquet(
-            historical_path).max('date').execute().df().iloc[0, 0]
-        dates = get_missing_dates(max_date_available)
+
+        if args.date:
+            dates = [args.date]  # use specific date provided
+        else:
+            # existing logic: find missing dates
+            historical_path = r2.get_full_path('clean', 'nav_daily_growth_plan')
+            max_date_available = conn.read_parquet(
+                historical_path).max('date').execute().df().iloc[0, 0]
+            dates = get_missing_dates(max_date_available)
+
         for date_str in dates:
             raw_df = fetch_daily_nav_data(start_date_str=date_str)
             clean_df = clean_nav_dataframe(raw_df)

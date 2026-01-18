@@ -6,8 +6,15 @@ Joins raw NAV data with scheme metadata to create enriched daily NAV data.
 Filters for growth plans only.
 """
 
+import argparse
 from config.settings import R2
 from utils.nav_helpers import save_to_parquet
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Clean daily NAV data')
+    parser.add_argument('--date', type=str, help='Specific date to process (YYYYMMDD format)')
+    return parser.parse_args()
 
 
 def create_daily_nav(raw_data_path, metadata_path, connection):
@@ -45,10 +52,17 @@ def create_daily_nav(raw_data_path, metadata_path, connection):
 
 
 def main():
+    args = parse_args()
+
     try:
         r2 = R2()
         conn = r2.setup_connection()
-        raw_data_path = r2.get_full_path('raw', "*")
+
+        if args.date:
+            raw_data_path = r2.get_full_path('raw', f'nav_daily_{args.date}')
+        else:
+            raw_data_path = r2.get_full_path('raw', "*")
+
         metadata_path = r2.get_full_path('clean', 'scheme_metadata')
 
         clean_df = create_daily_nav(
