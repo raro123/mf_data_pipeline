@@ -120,6 +120,7 @@ class API:
     
     # AMFI NAV API
     AMFI_NAV_BASE_URL = "https://www.amfiindia.com/spages/NAVAll.txt"
+    AMFI_NAV_HISTORY_URL = "https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx"
     AMFI_NAV_TIMEOUT = int(os.getenv("AMFI_NAV_TIMEOUT", "30"))
     
     # AMFI Scheme Metadata API  

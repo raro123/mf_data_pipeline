@@ -38,13 +38,6 @@ def setup_logger(
         
     Returns:
         logging.Logger: Configured logger instance
-        
-    Example:
-        >>> from utils.logging_setup import setup_logger
-        >>> from config.settings import Logging
-        >>> 
-        >>> logger = setup_logger(__name__, Logging.FETCH_DAILY_LOG)
-        >>> logger.info("Daily NAV processing started")
     """
     
     # Create logger
@@ -76,7 +69,7 @@ def setup_logger(
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
         
-        logger.info(f"📝 Logging to: {log_file_path}")
+        logger.info(f"Logging to: {log_file_path}")
     
     return logger
 
@@ -91,9 +84,9 @@ def log_script_start(logger: logging.Logger, script_name: str, description: str 
         description: Brief description of what the script does
     """
     logger.info("=" * 60)
-    logger.info(f"🚀 Starting {script_name}")
+    logger.info(f"STARTING: {script_name}")
     if description:
-        logger.info(f"📝 {description}")
+        logger.info(f"INFO: {description}")
     logger.info("=" * 60)
 
 
@@ -106,7 +99,7 @@ def log_script_end(logger: logging.Logger, script_name: str, success: bool = Tru
         script_name: Name of the script
         success: Whether script completed successfully
     """
-    status = "✅ COMPLETED" if success else "❌ FAILED"
+    status = "COMPLETED" if success else "FAILED"
     logger.info("=" * 60)
     logger.info(f"{status}: {script_name}")
     logger.info("=" * 60)
@@ -122,10 +115,10 @@ def log_data_summary(logger: logging.Logger, df, data_type: str = "data"):
         data_type: Type of data being summarized
     """
     if df is None or df.empty:
-        logger.warning(f"⚠️ No {data_type} to summarize")
+        logger.warning(f"WARNING: No {data_type} to summarize")
         return
     
-    logger.info(f"📊 {data_type.title()} Summary:")
+    logger.info(f"SUMMARY: {data_type.title()}:")
     logger.info(f"   Records: {len(df):,}")
     logger.info(f"   Columns: {len(df.columns)}")
     
@@ -146,10 +139,10 @@ def log_file_operation(logger: logging.Logger, operation: str, file_path: Path,
         success: Whether operation was successful  
         size_mb: File size in MB
     """
-    status = "✅" if success else "❌"
+    status = "SUCCESS" if success else "FAILED"
     size_info = f" ({size_mb:.2f} MB)" if size_mb else ""
     
-    logger.info(f"{status} {operation.title()}: {file_path}{size_info}")
+    logger.info(f"{status}: {operation.title()}: {file_path}{size_info}")
 
 
 def log_validation_results(logger: logging.Logger, results: dict):
@@ -159,17 +152,8 @@ def log_validation_results(logger: logging.Logger, results: dict):
     Args:
         logger: Logger instance
         results: Dictionary with validation results
-        
-    Example:
-        results = {
-            'total_records': 1000,
-            'valid_records': 995, 
-            'null_values': 5,
-            'duplicates': 0,
-            'invalid_dates': 2
-        }
     """
-    logger.info("🔍 Validation Results:")
+    logger.info("VALIDATION RESULTS:")
     
     for key, value in results.items():
         if isinstance(value, (int, float)):
@@ -200,7 +184,7 @@ def cleanup_old_logs(retention_days: int = None):
             deleted_count += 1
     
     if deleted_count > 0:
-        print(f"🧹 Cleaned up {deleted_count} old log files")
+        print(f"CLEANUP: Removed {deleted_count} old log files")
 
 
 # =============================================================================
@@ -258,4 +242,4 @@ if __name__ == "__main__":
     
     log_script_end(test_logger, "Logging Test", True)
     
-    print("✅ Logging test completed - check logs/ directory")
+    print("SUCCESS: Logging test completed - check logs/ directory")
