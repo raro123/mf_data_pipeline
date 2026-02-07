@@ -10,8 +10,9 @@
 5. **`extract_scheme_metadata.py`** - Metadata extractor
 6. **`clean_scheme_metadata.py`** - Enhanced metadata processor
 7. **`build_scheme_masterdata.py`** - Scheme masterdata builder
-8. **`ingest_zerodha_mf.py`** - Optional Zerodha integration
-9. **`load_benchmark_data.py`** - Benchmark data loader
+8. **`fetch_aum_data.py`** - Scheme-wise AUM fetcher (on-demand)
+9. **`ingest_zerodha_mf.py`** - Optional Zerodha integration
+10. **`load_benchmark_data.py`** - Benchmark data loader
 
 ### Archived Scripts: `/scripts/archive/`
 - Legacy memory-based processing scripts
@@ -57,6 +58,14 @@ python -m scripts.daily_nav_clean             # Clean daily data
 python -m scripts.extract_scheme_metadata     # Fresh metadata
 python -m scripts.clean_scheme_metadata       # Enhanced processing
 python -m scripts.build_scheme_masterdata     # Masterdata
+```
+
+### Optional: Scheme-wise AUM Data
+```bash
+# Fetch AUM data (on-demand, not scheduled)
+python -m scripts.fetch_aum_data              # Fetch last 5 years
+python -m scripts.fetch_aum_data --years 3    # Fetch last 3 years
+python -m scripts.fetch_aum_data --fy 1 --period 1  # Specific quarter
 ```
 
 ---

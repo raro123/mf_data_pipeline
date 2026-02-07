@@ -72,6 +72,10 @@ python -m scripts.build_scheme_masterdata
 
 **Optional:**
 ```bash
+# Fetch scheme-wise AUM data (on-demand, configurable depth)
+python -m scripts.fetch_aum_data              # Default: last 5 years
+python -m scripts.fetch_aum_data --years 3    # Specific number of years
+
 # Ingest Zerodha mutual fund data (separate workflow)
 python -m scripts.ingest_zerodha_mf
 
@@ -90,12 +94,14 @@ data/
 ├── raw/                      # Raw data from APIs
 │   ├── nav_historical/      # Historical NAV CSV files
 │   ├── nav_daily/           # Daily NAV data
-│   └── scheme_metadata/     # Raw scheme metadata
+│   ├── scheme_metadata/     # Raw scheme metadata
+│   └── aum_schemewise/      # Raw AUM data (optional)
 └── processed/               # Processed data in Parquet
     ├── nav_historical/      # Cleaned historical data
     ├── nav_daily/           # Cleaned daily data
     ├── nav_combined/        # Combined historical + daily
     ├── scheme_metadata/     # Cleaned metadata
+    ├── aum_schemewise/      # Processed AUM data
     └── analytical/          # Analytics-ready datasets
 ```
 

@@ -36,6 +36,7 @@ class Paths:
     RAW_NAV_DAILY = RAW_DATA / "nav_daily"
     SCHEME_METADATA_DIR = RAW_DATA / "scheme_metadata"
     SCHEME_METADATA_RAW = SCHEME_METADATA_DIR / "scheme_metadata_raw.csv"
+    RAW_AUM = RAW_DATA / "aum_schemewise"
     
     # Processed data directories
     RAW_NAV_HISTORICAL = PROCESSED_DATA / "nav_historical"  # Cleaned historical batches
@@ -43,6 +44,7 @@ class Paths:
     NAV_COMBINED = PROCESSED_DATA / "nav_combined"
     PROCESSED_SCHEME_METADATA = PROCESSED_DATA / "scheme_metadata"
     ANALYTICAL = PROCESSED_DATA / "analytical"
+    PROCESSED_AUM = PROCESSED_DATA / "aum_schemewise"
     
     # Specific file paths
     SCHEME_METADATA_CLEAN = PROCESSED_SCHEME_METADATA / "amfi_scheme_metadata.parquet"
@@ -50,6 +52,7 @@ class Paths:
     SCHEME_MASTERDATA = PROCESSED_SCHEME_METADATA / "scheme_masterdata.parquet"
     SCHEME_MASTERDATA_CSV = PROCESSED_SCHEME_METADATA / "scheme_masterdata.csv"
     COMBINED_NAV_TABLE = NAV_COMBINED / "raw_nav_table.parquet"
+    AUM_SCHEMEWISE = PROCESSED_AUM / "aum_schemewise.parquet"
     
     # Create all directories
     @classmethod
@@ -63,11 +66,13 @@ class Paths:
             cls.RAW_NAV_CSV,
             cls.RAW_NAV_DAILY,
             cls.SCHEME_METADATA_DIR,
+            cls.RAW_AUM,
             cls.RAW_NAV_HISTORICAL,
             cls.PROCESSED_NAV_DAILY,
             cls.NAV_COMBINED,
             cls.PROCESSED_SCHEME_METADATA,
-            cls.ANALYTICAL
+            cls.ANALYTICAL,
+            cls.PROCESSED_AUM
         ]
         
         for directory in directories:
@@ -123,11 +128,15 @@ class API:
     AMFI_NAV_HISTORY_URL = "https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx"
     AMFI_NAV_TIMEOUT = int(os.getenv("AMFI_NAV_TIMEOUT", "30"))
     
-    # AMFI Scheme Metadata API  
+    # AMFI Scheme Metadata API
     AMFI_SCHEME_URL = "https://portal.amfiindia.com/DownloadSchemeData_Po.aspx"
     AMFI_SCHEME_PARAMS = {"mf": "0"}
     AMFI_SCHEME_TIMEOUT = int(os.getenv("AMFI_SCHEME_TIMEOUT", "30"))
-    
+
+    # AMFI AUM API
+    AMFI_AUM_URL = "https://www.amfiindia.com/api/average-aum-schemewise"
+    AMFI_AUM_TIMEOUT = int(os.getenv("AMFI_AUM_TIMEOUT", "60"))
+
     # Request configuration
     MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
     RETRY_DELAY = int(os.getenv("RETRY_DELAY", "5"))  # seconds
@@ -166,12 +175,13 @@ class Logging:
     
     # Log file naming patterns
     FETCH_HISTORICAL_LOG = "nav_fetch_{date}.log"
-    CLEAN_HISTORICAL_LOG = "clean_nav_{date}.log" 
+    CLEAN_HISTORICAL_LOG = "clean_nav_{date}.log"
     FETCH_DAILY_LOG = "daily_nav_{date}.log"
     COMBINE_TABLE_LOG = "raw_nav_table_{date}.log"
     EXTRACT_METADATA_LOG = "extract_scheme_metadata_{date}.log"
     CLEAN_METADATA_LOG = "clean_scheme_metadata_{date}.log"
     ANALYTICAL_NAV_LOG = "analytical_nav_{date}.log"
+    FETCH_AUM_LOG = "fetch_aum_{date}.log"
     
     # Log retention
     LOG_RETENTION_DAYS = int(os.getenv("LOG_RETENTION_DAYS", "30"))
