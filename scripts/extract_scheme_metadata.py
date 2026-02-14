@@ -2,143 +2,92 @@
 """
 Scheme Metadata Extractor
 
-Fetches scheme metadata from AMFI portal and saves as raw CSV.
-This script has been refactored to use centralized configuration and logging.
+Fetches scheme metadata from AMFI portal and saves as Parquet to R2.
 """
 
 import requests
 import pandas as pd
-from pathlib import Path
 from datetime import datetime
 from io import StringIO
 
-from config.settings import Paths, API
-from utils.logging_setup import get_extract_metadata_logger, log_script_start, log_script_end, log_file_operation
+from config.settings import API, R2
+from utils.logging_setup import get_extract_metadata_logger, log_script_start, log_script_end
+from utils.nav_helpers import save_to_parquet
 
-# Initialize logger
 logger = get_extract_metadata_logger(__name__)
+
 
 def fetch_scheme_metadata():
     """
-    Fetch raw scheme metadata from AMFI portal.
-    
+    Fetch raw scheme metadata CSV from AMFI portal.
+
     Returns:
         str: Raw CSV content or None if failed
     """
-    logger.info("📡 Fetching scheme metadata from AMFI portal...")
-    
-    # Use configured API settings
     url = API.AMFI_SCHEME_URL
     params = API.AMFI_SCHEME_PARAMS
-    
+    logger.info(f"Fetching scheme metadata from {url}")
+
     try:
-        logger.info(f"🌐 Requesting: {url}")
-        logger.info(f"📋 Parameters: {params}")
-        
         response = requests.get(url, params=params, timeout=API.AMFI_SCHEME_TIMEOUT)
         response.raise_for_status()
-        
-        logger.info(f"✅ HTTP {response.status_code}: {len(response.content):,} bytes received")
-        logger.info(f"📄 Content-Type: {response.headers.get('Content-Type', 'Unknown')}")
-        
-        # Basic validation of CSV content
-        csv_content = response.text
-        lines = csv_content.split('\n')
-        logger.info(f"📊 Total lines: {len(lines):,}")
-        
-        # Check if it looks like CSV
-        if len(lines) > 1 and ',' in lines[0]:
-            header = lines[0]
-            logger.info(f"📋 CSV Header: {header[:100]}...")
-            logger.info(f"📊 Data lines: {len(lines) - 1:,}")
-        else:
-            logger.warning("⚠️ Content doesn't appear to be CSV format")
-        
-        return csv_content
-        
-    except requests.exceptions.Timeout:
-        logger.error("❌ Request timeout - server took too long to respond")
-        return None
+        logger.info(f"Received {len(response.content):,} bytes (HTTP {response.status_code})")
+        return response.text
+
     except requests.exceptions.RequestException as e:
-        logger.error(f"❌ HTTP request failed: {e}")
-        return None
-    except Exception as e:
-        logger.error(f"❌ Unexpected error during fetch: {e}")
+        logger.error(f"HTTP request failed: {e}")
         return None
 
-def save_raw_metadata(csv_content):
+
+def save_metadata_to_r2(csv_content):
     """
-    Save raw CSV content to timestamped file for better versioning.
-    
+    Convert CSV content to Parquet and upload to R2.
+
     Args:
-        csv_content (str): Raw CSV content
-        
+        csv_content: Raw CSV string from AMFI
+
     Returns:
-        str: Path to saved file or None if failed
+        str: R2 path of saved file, or None if failed
     """
-    # Use timestamped output path for better versioning
-    from config.settings import get_timestamped_metadata_file_path
-    output_file = get_timestamped_metadata_file_path()
-    
-    logger.info(f"💾 Saving raw metadata to {output_file}...")
-    
-    if not csv_content:
-        logger.error("No content to save")
-        return None
-    
-    # Create output directory
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-    
+    date_str = datetime.now().strftime('%Y%m%d')
+    r2 = R2()
+    r2_path = r2.get_full_path('metadata', f'scheme_metadata_{date_str}')
+    logger.info(f"Target: {r2_path}")
+
     try:
-        # Save raw CSV content
-        # Use configured encoding
-        from config.settings import Processing
-        with open(output_file, 'w', encoding=Processing.CSV_ENCODING) as f:
-            f.write(csv_content)
-        
-        file_size_mb = output_file.stat().st_size / (1024 * 1024)
-        log_file_operation(logger, "saved", output_file, True, file_size_mb)
-        
-        # Quick validation - try to read as CSV
-        try:
-            df_test = pd.read_csv(output_file, nrows=5)
-            logger.info(f"📋 Columns detected: {len(df_test.columns)}")
-            logger.info(f"📊 Sample shape: {df_test.shape}")
-        except Exception as e:
-            logger.warning(f"⚠️ CSV validation warning: {e}")
-        
-        return str(output_file)
-        
+        conn = r2.setup_connection()
+
+        df = pd.read_csv(StringIO(csv_content))
+        logger.info(f"Parsed {len(df):,} rows, {len(df.columns)} columns")
+
+        save_to_parquet(conn, 'scheme_metadata', df, r2_path)
+        logger.info(f"Saved to {r2_path}")
+
+        conn.close()
+        return r2_path
+
     except Exception as e:
-        logger.error(f"Failed to save raw metadata: {e}")
+        logger.error(f"Failed to save metadata to R2: {e}")
         return None
+
 
 def main():
-    """Main function to extract and save raw scheme metadata."""
-    
-    log_script_start(logger, "Scheme Metadata Extractor", 
-                    "Fetching raw scheme metadata from AMFI portal")
-    
-    # Ensure directories exist
-    Paths.create_directories()
-    
-    # Fetch raw data
+    """Main function to extract scheme metadata and save to R2."""
+    log_script_start(logger, "Scheme Metadata Extractor",
+                     "Fetching scheme metadata from AMFI and saving to R2")
+
     csv_content = fetch_scheme_metadata()
     if not csv_content:
-        logger.error("❌ Failed to fetch scheme metadata")
+        logger.error("Failed to fetch scheme metadata")
         log_script_end(logger, "Scheme Metadata Extractor", False)
         return 1
-    
-    # Save raw data
-    saved_path = save_raw_metadata(csv_content)
-    success = saved_path is not None
-    
-    if success:
-        logger.info("➡️  Next step: run 06_clean_scheme_metadata.py to process this data")
-    
+
+    r2_path = save_metadata_to_r2(csv_content)
+    success = r2_path is not None
+
     log_script_end(logger, "Scheme Metadata Extractor", success)
     return 0 if success else 1
 
+
 if __name__ == "__main__":
-    exit_code = main()
-    exit(exit_code)
+    exit(main())
