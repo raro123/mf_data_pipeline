@@ -1,0 +1,46 @@
+name: Weekly Scheme Metadata Extraction
+
+on:
+  schedule:
+    # Run at 1:00 AM UTC Saturday (6:30 AM IST Saturday)
+    - cron: '0 1 * * 6'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  extract-scheme-metadata:
+    runs-on: ubuntu-latest
+
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      AMFI_SCHEME_TIMEOUT: ${{ vars.AMFI_SCHEME_TIMEOUT || '30' }}
+      ENVIRONMENT: production
+      LOG_LEVEL: ${{ vars.LOG_LEVEL || 'INFO' }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        enable-cache: true
+        cache-dependency-glob: 'requirements.txt'
+
+    - name: Install dependencies
+      run: uv pip install --system -r requirements.txt
+
+    - name: Run scheme metadata extraction
+      run: python -m scripts.extract_scheme_metadata
+
+    - name: Upload logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: scheme-metadata-logs-${{ github.run_number }}
+        path: logs/
+        retention-days: 7
