@@ -33,10 +33,12 @@ jobs:
         cache-dependency-glob: 'requirements.txt'
 
     - name: Install dependencies
-      run: uv pip install --system -r requirements.txt
+      run: |
+        uv venv
+        uv pip install -r requirements.txt
 
     - name: Run scheme metadata extraction
-      run: python -m scripts.extract_scheme_metadata
+      run: uv run python -m scripts.extract_scheme_metadata
 
     - name: Upload logs on failure
       if: failure()
