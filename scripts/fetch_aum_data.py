@@ -239,9 +239,10 @@ def main():
     print("\nRecords by Financial Year:")
     print(df.groupby('financial_year').size().to_string())
 
-    # Save locally
+    # Save locally with date stamp
     Paths.create_directories()
-    local_path = Paths.AUM_SCHEMEWISE
+    date_stamp = datetime.now().strftime('%Y%m%d')
+    local_path = Paths.AUM_SCHEMEWISE.parent / f"aum_schemewise_{date_stamp}.parquet"
     df.to_parquet(local_path, index=False)
     print(f"\nSaved locally: {local_path}")
 
@@ -249,7 +250,7 @@ def main():
     try:
         r2 = R2()
         conn = r2.setup_connection()
-        r2_path = r2.get_full_path('aum', 'aum_schemewise')
+        r2_path = r2.get_full_path('aum', f'aum_schemewise_{date_stamp}')
         save_to_parquet(conn, 'aum_schemewise', df, r2_path)
         print(f"Uploaded to R2: {r2_path}")
     except Exception as e:
