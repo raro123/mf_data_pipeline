@@ -9,7 +9,6 @@ Usage:
     python -m scripts.fetch_aum_data              # Fetch last 5 years (default)
     python -m scripts.fetch_aum_data --years 3    # Fetch last 3 years
     python -m scripts.fetch_aum_data --fy 1 --period 1  # Specific FY and quarter
-    python -m scripts.fetch_aum_data --force      # Re-fetch even if data exists
 """
 
 import argparse
@@ -29,7 +28,6 @@ def parse_args():
                         help='Number of years to fetch (default: 5)')
     parser.add_argument('--fy', type=int, help='Specific financial year ID (1=current, 2=previous)')
     parser.add_argument('--period', type=int, help='Specific period/quarter ID (1-4)')
-    parser.add_argument('--force', action='store_true', help='Re-fetch even if data exists')
     return parser.parse_args()
 
 
@@ -83,27 +81,6 @@ def fetch_aum_api(fy_id: int, period_id: Optional[int] = None) -> dict:
     return {}
 
 
-def parse_fy_mappings(data: dict) -> tuple[str, list[dict]]:
-    """
-    Extract financial year label and periods from API response.
-
-    API returns:
-    - years: list of dicts with 'id' and 'financial_year'
-    - data.financial_year: current FY label
-    - data.periods: list of dicts with 'id' and 'period'
-
-    Args:
-        data: API response dict
-
-    Returns:
-        Tuple of (FY label, periods list)
-    """
-    fy_data = data.get('data', {})
-    fy_label = fy_data.get('financial_year', '')
-    periods = fy_data.get('periods', [])
-    return fy_label, periods
-
-
 def flatten_aum_response(data: dict, fy_label: str, period_label: str) -> pd.DataFrame:
     """
     Flatten nested AUM JSON response into a DataFrame.
@@ -144,6 +121,9 @@ def fetch_all_aum_data(num_years: int, specific_fy: Optional[int] = None,
     """
     Fetch AUM data for specified range of financial years.
 
+    Makes one initial mapping call to build FY label lookup, then fetches
+    periods per FY and uses selectedPeriod from data responses as period labels.
+
     Args:
         num_years: Number of years to fetch
         specific_fy: If provided, fetch only this FY
@@ -160,40 +140,56 @@ def fetch_all_aum_data(num_years: int, specific_fy: Optional[int] = None,
     else:
         fy_ids = list(range(1, num_years + 1))
 
+    # One initial mapping call to build FY label lookup and cache FY1's periods
+    initial_mapping = fetch_aum_api(1, period_id=None)
+    if not initial_mapping:
+        print("Could not fetch initial mapping, aborting.")
+        return pd.DataFrame()
+
+    fy_labels = {fy['id']: fy['financial_year'] for fy in initial_mapping.get('years', [])}
+    # Cache FY1's periods from the initial call
+    periods_cache = {1: initial_mapping.get('data', {}).get('periods', [])}
+
     for fy_id in fy_ids:
-        # First fetch mapping to get labels
-        mapping_data = fetch_aum_api(fy_id, period_id=None)
-        if not mapping_data:
-            print(f"Could not fetch mapping for FY ID {fy_id}, skipping...")
+        fy_label = fy_labels.get(fy_id)
+        if not fy_label:
+            print(f"No FY label for ID {fy_id}, skipping...")
             continue
 
-        fy_label, periods = parse_fy_mappings(mapping_data)
-        if not fy_label or not periods:
-            print(f"No FY/periods data for FY ID {fy_id}, skipping...")
+        # Get periods: use cache for FY1, otherwise fetch mapping
+        if fy_id in periods_cache:
+            periods = periods_cache[fy_id]
+        else:
+            mapping = fetch_aum_api(fy_id, period_id=None)
+            if not mapping:
+                print(f"Could not fetch periods for {fy_label}, skipping...")
+                continue
+            periods = mapping.get('data', {}).get('periods', [])
+
+        if not periods:
+            print(f"No periods available for {fy_label}, skipping...")
             continue
 
         print(f"Processing: {fy_label} ({len(periods)} periods available)")
 
-        # Determine periods to fetch
+        # Determine which periods to fetch
         if specific_period is not None:
+            # Validate the requested period exists
+            if not any(p['id'] == specific_period for p in periods):
+                print(f"Period {specific_period} not available for {fy_label}, skipping...")
+                continue
             period_ids = [specific_period]
         else:
             period_ids = [p['id'] for p in periods]
 
         for period_id in period_ids:
-            # Find period label from mapping
-            period_info = next((p for p in periods if p['id'] == period_id), None)
-            if not period_info:
-                print(f"Period {period_id} not available for {fy_label}, skipping...")
-                continue
-
-            period_label = period_info['period']
-            print(f"  Fetching: {period_label}")
-
             data = fetch_aum_api(fy_id, period_id)
             if not data or 'data' not in data:
-                print(f"  No data for {period_label}, may not be available yet")
+                print(f"  No data for period {period_id}, may not be available yet")
                 continue
+
+            period_label = data.get('selectedPeriod', f'Period {period_id}')
+            print(f"  Fetching: {period_label}")
 
             df = flatten_aum_response(data, fy_label, period_label)
             if not df.empty:
@@ -253,7 +249,7 @@ def main():
     try:
         r2 = R2()
         conn = r2.setup_connection()
-        r2_path = r2.get_full_path('clean', 'aum_schemewise')
+        r2_path = r2.get_full_path('raw', 'aum_schemewise')
         save_to_parquet(conn, 'aum_schemewise', df, r2_path)
         print(f"Uploaded to R2: {r2_path}")
     except Exception as e:
