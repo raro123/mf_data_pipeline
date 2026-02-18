@@ -249,7 +249,7 @@ def main():
     try:
         r2 = R2()
         conn = r2.setup_connection()
-        r2_path = r2.get_full_path('raw', 'aum_schemewise')
+        r2_path = r2.get_full_path('aum', 'aum_schemewise')
         save_to_parquet(conn, 'aum_schemewise', df, r2_path)
         print(f"Uploaded to R2: {r2_path}")
     except Exception as e:
