@@ -236,3 +236,5 @@ Parquet unless an existing workflow explicitly needs CSV for inspection.
    `SCRIPT_INVENTORY.md` when behavior or orchestration changes.
 5. If a workflow changes, also update `GITHUB_ACTIONS_SETUP.md` and
    `.github/workflows/README.md`.
+6. Keep `MIGRATION_STATUS.md` current while the legacy NAV clean step remains
+   scheduled.

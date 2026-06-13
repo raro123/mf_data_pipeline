@@ -150,9 +150,17 @@ notebooks/              Exploratory analysis
   `test_github_actions_setup.py` remains a separate environment and
   connectivity diagnostic rather than a unit test.
 
+## Migration Status
+
+The raw NAV fetcher is now decoupled from the legacy clean NAV output. The code
+is deployed, while verification of its first new weekday fetch is still
+pending. See `MIGRATION_STATUS.md` for live dates, acceptance checks, and the
+retirement sequence for legacy clean processing.
+
 ## More Documentation
 
 - `PIPELINE_EXECUTION_ORDER.md` - supported run order and dependencies
 - `SCRIPT_INVENTORY.md` - purpose and status of every script
 - `GITHUB_ACTIONS_SETUP.md` - GitHub secrets, schedules, and operations
+- `MIGRATION_STATUS.md` - current datalake migration state and next actions
 - `AGENTS.md` - engineering guidance for repository contributors and agents

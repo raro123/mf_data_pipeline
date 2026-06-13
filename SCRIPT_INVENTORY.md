@@ -67,3 +67,9 @@ repository and must not be used in runbooks.
 
 The local combined and analytical NAV Parquet files remain as historical
 artifacts, but no current script rebuilds them.
+
+## Migration Tracking
+
+See `MIGRATION_STATUS.md` for the deployed raw NAV checkpoint change, current
+R2 and datalake freshness, and the conditions for retiring
+`daily_nav_clean.py`.
