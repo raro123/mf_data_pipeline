@@ -75,7 +75,8 @@ jobs:
         cd ${{ github.workspace }}
         python -m scripts.fetch_daily_nav
 
-    - name: Run daily NAV clean script
+    # Temporarily retained while consumers migrate fully to datalake tables.
+    - name: Run legacy daily NAV clean script
       if: steps.daily_transform.outcome == 'success'
       run: |
         echo "Starting daily NAV clean script..."

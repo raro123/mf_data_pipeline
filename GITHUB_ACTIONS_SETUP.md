@@ -1,182 +1,167 @@
-# GitHub Actions Setup for Daily NAV Processing
+# GitHub Actions Setup
 
-This document explains how to configure GitHub Actions for automated daily NAV data processing.
+The repository has three active workflows under `.github/workflows/`. All can
+run on schedule or through `workflow_dispatch` from the GitHub Actions tab.
 
-## Overview
+## Active Workflows
 
-The GitHub Actions workflow `daily-nav-processing.yml` automatically:
-1. Runs at 11:00 PM UTC daily (6:30 AM IST next day)
-2. Executes `03_daily_nav_transform.py` to fetch and process daily NAV data
-3. If successful, runs `daily_nav_clean.py` to clean and enrich the data
-4. Uploads logs on failure for debugging
+| Workflow file | Schedule | Purpose |
+| --- | --- | --- |
+| `daily-nav-processing.yml` | `0 4 * * *` | Fetch missing daily NAV data and rebuild clean growth-plan NAV in R2 |
+| `extract-scheme-metadata.yml` | `0 1 * * 6` | Extract a dated raw AMFI scheme metadata snapshot to R2 |
+| `load-benchmark-data.yml` | `30 18 * * *` | Copy the upstream NIFTY Delta dataset to clean Parquet in R2 |
 
-## Required Setup
+Schedule conversions:
 
-### 1. GitHub Secrets (Required)
+- 04:00 UTC is 09:30 IST on the same day.
+- Saturday 01:00 UTC is Saturday 06:30 IST.
+- 18:30 UTC is 00:00 IST on the following day.
 
-These are sensitive credentials that must be configured in your GitHub repository settings:
+India does not observe daylight saving time.
 
-**Repository Settings → Secrets and variables → Actions → New repository secret**
+## Required GitHub Secrets
 
-| Secret Name | Description | Example Value |
-|-------------|-------------|---------------|
-| `R2_ACCESS_KEY_ID` | Cloudflare R2 Access Key ID | `abc123def456...` |
-| `R2_SECRET_ACCESS_KEY` | Cloudflare R2 Secret Access Key | `xyz789uvw012...` |
-| `R2_ACCOUNT_ID` | Cloudflare R2 Account ID | `a1b2c3d4e5f6...` |
+Configure these under **Settings > Secrets and variables > Actions**:
 
-**How to add secrets:**
-1. Go to your GitHub repository
-2. Click on **Settings** tab
-3. In the left sidebar, click **Secrets and variables** → **Actions**
-4. Click **New repository secret**
-5. Add each secret with the exact name and value
+| Secret | Purpose |
+| --- | --- |
+| `R2_ACCESS_KEY_ID` | Cloudflare R2 access key |
+| `R2_SECRET_ACCESS_KEY` | Cloudflare R2 secret key |
+| `R2_ACCOUNT_ID` | Cloudflare account ID used by DuckDB's R2 secret |
 
-### 2. GitHub Variables (Optional)
+The token must be able to read and write the `financial-data-store` bucket.
+The benchmark workflow also needs read access to the upstream
+`bronze/nseindex/daily_price_nifty_indices` object path.
 
-These are non-sensitive configuration values that can be customized:
+Never commit these values. Local credentials belong in `.env`, which is
+gitignored.
 
-**Repository Settings → Secrets and variables → Actions → Variables tab → New repository variable**
+## Optional GitHub Variables
 
-| Variable Name | Description | Default Value | Recommended Value |
-|---------------|-------------|---------------|-------------------|
-| `AMFI_NAV_TIMEOUT` | API timeout for NAV requests (seconds) | `30` | `30` |
-| `AMFI_SCHEME_TIMEOUT` | API timeout for scheme requests (seconds) | `30` | `30` |
-| `MAX_RETRIES` | Maximum retry attempts for failed API calls | `3` | `3` |
-| `RETRY_DELAY` | Delay between retries (seconds) | `5` | `5` |
-| `HISTORICAL_FETCH_DAYS` | Days of historical data to fetch | `90` | `90` |
-| `CHUNK_SIZE` | Processing chunk size | `10000` | `10000` |
-| `LOG_LEVEL` | Logging level | `INFO` | `INFO` |
+The workflows use defaults when these repository variables are absent:
 
-### 3. Cloudflare R2 Setup
+| Variable | Default | Used by |
+| --- | --- | --- |
+| `AMFI_NAV_TIMEOUT` | `30` | Daily NAV |
+| `AMFI_SCHEME_TIMEOUT` | `30` | Daily NAV environment and metadata extraction |
+| `MAX_RETRIES` | `3` | Daily NAV |
+| `RETRY_DELAY` | `5` | Daily NAV |
+| `HISTORICAL_FETCH_DAYS` | `90` | Exposed to daily NAV environment, mainly used by historical fetches |
+| `CHUNK_SIZE` | `10000` | Exposed to daily NAV environment |
+| `LOG_LEVEL` | `INFO` | All workflows |
 
-#### Creating R2 Credentials:
+## R2 Object Layout
 
-1. **Login to Cloudflare Dashboard**
-2. **Navigate to R2 Object Storage**
-3. **Create API Token:**
-   - Go to "Manage R2 API Tokens"
-   - Click "Create API Token"
-   - Choose "Custom token"
-   - Set permissions: `Object:Read`, `Object:Write`, `Bucket:Read`
-   - Add your bucket name under "Account resources"
-   - Click "Continue to summary" → "Create Token"
-   - **Save the Access Key ID and Secret Access Key**
+The current scripts generate paths under:
 
-4. **Get Account ID:**
-   - In Cloudflare dashboard, the Account ID is shown in the right sidebar
-   - Copy this ID for the `R2_ACCOUNT_ID` secret
-
-#### Bucket Configuration:
-
-Ensure your R2 bucket has the following structure:
-```
-financial-data-store/
-├── mutual_funds/
-│   ├── raw/
-│   │   ├── nav_historical/
-│   │   └── nav_daily/
-│   └── clean/
-│       ├── nav_daily_growth_plan/
-│       └── scheme_metadata/
+```text
+r2://financial-data-store/mutual_funds/
 ```
 
-## Workflow Configuration
+Relevant objects include:
 
-### Schedule
+```text
+mutual_funds/
+|-- raw/
+|   |-- nav_historical.parquet
+|   `-- nav_daily_<YYYYMMDD>.parquet
+|-- metadata/
+|   `-- scheme_metadata_<YYYYMMDD>.parquet
+|-- clean/
+|   |-- scheme_metadata.parquet
+|   |-- nav_daily_growth_plan.parquet
+|   `-- mf_benchmark_nifty.parquet
+`-- aum/
+    `-- aum_schemewise_<YYYYMMDD>.parquet
+```
 
-- **Cron expression:** `0 23 * * *` (11:00 PM UTC daily)
-- **IST equivalent:** 4:30 AM IST (or 5:30 AM during DST)
-- **Reasoning:** Runs early morning IST to process previous day's NAV data
+`clean/scheme_metadata.parquet` is consumed by the daily NAV cleaner, but no
+current scheduled workflow creates it. It must already exist until metadata
+cleaning and publication are integrated into the R2 workflow.
 
-### Manual Triggering
+## Workflow Details
 
-You can manually trigger the workflow:
-1. Go to **Actions** tab in your repository
-2. Click on "Daily NAV Data Processing"
-3. Click "Run workflow" button
+### Daily NAV Processing
 
-### Error Handling
-
-- If `03_daily_nav_transform.py` fails, the workflow stops
-- If `daily_nav_clean.py` fails, logs are uploaded as artifacts
-- Artifacts are retained for 7 days for debugging
-
-## Monitoring and Troubleshooting
-
-### Viewing Workflow Results
-
-1. Go to **Actions** tab in your repository
-2. Click on "Daily NAV Data Processing"
-3. View recent workflow runs and their status
-
-### Debugging Failed Runs
-
-1. Click on a failed workflow run
-2. Expand the failed step to see error details
-3. Download log artifacts if available
-4. Check the R2 bucket for any partial data
-
-### Common Issues and Solutions
-
-| Issue | Solution |
-|-------|----------|
-| Authentication errors | Verify R2 credentials in secrets |
-| Timeout errors | Increase timeout values in variables |
-| API rate limits | Increase retry delay or reduce frequency |
-| Missing dependencies | Ensure `requirements.txt` is up to date |
-| Data validation errors | Check AMFI API data format changes |
-
-## Security Best Practices
-
-1. **Never commit credentials** to the repository
-2. **Use GitHub Secrets** for all sensitive information
-3. **Regularly rotate** R2 API tokens
-4. **Monitor workflow logs** for any suspicious activity
-5. **Limit R2 token permissions** to minimum required access
-
-## Testing the Setup
-
-### Local Testing
-
-Before relying on GitHub Actions, test locally:
+Runtime: Python 3.9 with dependencies installed by pip.
 
 ```bash
-# Set environment variables
-export R2_ACCESS_KEY_ID="your_access_key"
-export R2_SECRET_ACCESS_KEY="your_secret_key"
-export R2_ACCOUNT_ID="your_account_id"
-
-# Run scripts manually
-python scripts/03_daily_nav_transform.py
-python scripts/daily_nav_clean.py
+python -m scripts.fetch_daily_nav
+python -m scripts.daily_nav_clean
 ```
 
-### GitHub Actions Testing
+The fetcher reads its latest checkpoint from canonical raw object names under
+`mutual_funds/raw/nav_daily_*.parquet`, not from clean NAV. An empty prefix
+requires `--bootstrap-date YYYYMMDD` when run manually. It fetches subsequent
+weekdays through yesterday from AMFI and writes dated raw Parquet files.
 
-1. **Push the workflow file** to your repository
-2. **Manually trigger** the workflow first
-3. **Check the results** before relying on scheduled runs
-4. **Verify data** in your R2 bucket
+The cleaner joins raw NAV to R2 scheme metadata and rewrites the clean
+growth-plan dataset. This second step is temporarily retained for legacy
+compatibility; the datalake builds its canonical NAV tables directly from raw
+objects.
 
-## Maintenance
+The workflow uploads `logs/` as a seven-day artifact on failure. The current
+daily scripts mostly print directly to the workflow log, so the artifact may
+contain little or no additional detail.
 
-### Regular Tasks
+### Weekly Scheme Metadata Extraction
 
-- **Monitor workflow runs** weekly
-- **Update dependencies** monthly in `requirements.txt`
-- **Review and rotate** R2 API tokens quarterly
-- **Check disk usage** in R2 bucket monthly
+Runtime: Python 3.12 with dependencies installed by uv.
 
-### Scaling Considerations
+```bash
+uv run python -m scripts.extract_scheme_metadata
+```
 
-- For high-frequency processing, consider using GitHub Actions with more powerful runners
-- For large datasets, implement data partitioning strategies
-- Monitor GitHub Actions usage limits for your plan
+This job only extracts a dated raw metadata Parquet file to R2. It does not run
+`clean_scheme_metadata.py`, publish `clean/scheme_metadata.parquet`, or rebuild
+local scheme master data.
 
-## Support
+### Daily Benchmark Loading
 
-For issues with:
-- **GitHub Actions:** Check GitHub documentation or repository issues
-- **R2 Storage:** Contact Cloudflare support
-- **AMFI API:** Check AMFI website for API changes
-- **Script errors:** Review application logs and error messages
+Runtime: Python 3.9 with dependencies installed by pip.
+
+```bash
+python -m scripts.load_benchmark_data
+```
+
+This reads the upstream NIFTY Delta table and overwrites the clean mutual-fund
+benchmark Parquet object.
+
+## Manual Verification
+
+After configuring secrets, manually run each workflow before relying on its
+schedule:
+
+1. Open the repository's **Actions** tab.
+2. Select the workflow.
+3. Choose **Run workflow** on the intended branch.
+4. Inspect the job log and verify the expected R2 object was updated.
+
+For a local configuration diagnostic:
+
+```bash
+python -m scripts.test_github_actions_setup
+```
+
+This command checks configuration and connectivity. It may access R2 and AMFI;
+it is not a unit-test suite.
+
+## Common Failures
+
+| Symptom | Check |
+| --- | --- |
+| R2 authentication error | Secret names, token validity, account ID, and bucket permissions |
+| DuckDB extension failure | Runner network access and DuckDB extension installation/loading |
+| AMFI timeout or malformed response | AMFI availability, timeout variables, and response format |
+| Daily clean cannot read metadata | Presence and schema of `mutual_funds/clean/scheme_metadata.parquet` |
+| Benchmark `delta_scan` failure | Upstream path, read permission, and DuckDB Delta extension support |
+| No useful failure artifact | Read the GitHub Actions step log; not every script uses file logging |
+
+## Operational Gaps
+
+- Metadata extraction, cleaning, publication, and master-data maintenance are
+  not yet one automated workflow.
+- NAV validation is manual and does not gate the daily workflow.
+- Workflows print success/failure messages but do not send external alerts.
+- NAV and benchmark jobs use pip/Python 3.9 while metadata uses uv/Python 3.12.
+  Standardizing runtimes would reduce maintenance differences.

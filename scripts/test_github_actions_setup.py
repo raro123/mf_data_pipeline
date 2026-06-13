@@ -135,7 +135,7 @@ def test_script_availability():
     print("\n📝 Testing Script Availability...")
 
     scripts_to_check = [
-        'scripts/03_daily_nav_transform.py',
+        'scripts/fetch_daily_nav.py',
         'scripts/daily_nav_clean.py'
     ]
 

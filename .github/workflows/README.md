@@ -1,91 +1,66 @@
 # GitHub Actions Workflows
 
-This directory contains automated workflows for the Mutual Fund Data Pipeline.
+## `daily-nav-processing.yml`
 
-## Workflows
+- Schedule: daily at 04:00 UTC / 09:30 IST
+- Runtime: Python 3.9 and pip
+- Commands:
 
-### `daily-nav-processing.yml`
+```bash
+python -m scripts.fetch_daily_nav
+python -m scripts.daily_nav_clean
+```
 
-**Purpose:** Automated daily processing of NAV (Net Asset Value) data from AMFI.
+The job gap-fills raw NAV in R2 using dated raw object names as its checkpoint.
+It then temporarily rebuilds the legacy clean growth-plan NAV dataset. Only
+that legacy clean step requires an existing R2
+`mutual_funds/clean/scheme_metadata.parquet` object.
 
-**Schedule:**
-- Runs daily at 11:00 PM UTC (4:30 AM IST / 5:30 AM IST during DST)
-- Can be manually triggered via the Actions tab
+## `extract-scheme-metadata.yml`
 
-**Process Flow:**
-1. **Setup Environment**
-   - Checkout code
-   - Setup Python 3.9
-   - Install dependencies from `requirements.txt`
-   - Create required directories
+- Schedule: Saturday at 01:00 UTC / 06:30 IST
+- Runtime: Python 3.12 and uv
+- Command:
 
-2. **Daily NAV Transform** (`03_daily_nav_transform.py`)
-   - Fetches latest NAV data from AMFI API
-   - Processes and stores raw data in R2 bucket
-   - Handles gap-filling for missing dates
+```bash
+uv run python -m scripts.extract_scheme_metadata
+```
 
-3. **Daily NAV Clean** (`daily_nav_clean.py`)
-   - Only runs if transform step succeeds
-   - Cleans and enriches NAV data with metadata
-   - Creates analysis-ready datasets
+The job writes a dated raw AMFI metadata snapshot under the R2
+`mutual_funds/metadata/` prefix. It does not clean or publish canonical scheme
+metadata.
 
-4. **Error Handling**
-   - Uploads logs as artifacts on failure
-   - Sends notifications on success/failure
+## `load-benchmark-data.yml`
 
-## Required Configuration
+- Schedule: daily at 18:30 UTC / 00:00 IST next day
+- Runtime: Python 3.9 and pip
+- Command:
 
-Before the workflow can run successfully, you must configure:
+```bash
+python -m scripts.load_benchmark_data
+```
 
-1. **GitHub Secrets** (required):
-   - `R2_ACCESS_KEY_ID`
-   - `R2_SECRET_ACCESS_KEY`
-   - `R2_ACCOUNT_ID`
+The job copies the upstream NIFTY Delta table to
+`mutual_funds/clean/mf_benchmark_nifty.parquet` in R2.
 
-2. **GitHub Variables** (optional):
-   - `AMFI_NAV_TIMEOUT`, `MAX_RETRIES`, etc.
+## Shared Configuration
 
-See `GITHUB_ACTIONS_SETUP.md` for detailed setup instructions.
+All workflows require these GitHub Actions secrets:
 
-## Monitoring
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+- `R2_ACCOUNT_ID`
 
-### Viewing Workflow Status
-1. Go to the **Actions** tab in your repository
-2. Click on "Daily NAV Data Processing"
-3. View recent runs and their status
+Optional API, retry, and logging settings are supplied through repository
+variables. See `GITHUB_ACTIONS_SETUP.md` in the repository root for the full
+configuration and troubleshooting guide.
 
-### Manual Execution
-1. In the Actions tab, select the workflow
-2. Click "Run workflow" button
-3. Choose branch (usually `main`)
-4. Click "Run workflow"
+## Operations
 
-## Troubleshooting
+Each workflow supports `workflow_dispatch` for manual runs. On failure, inspect
+the failed step in the Actions log first. Workflows upload `logs/` as a
+seven-day artifact where configured, but scripts that print directly to stdout
+may not create a useful log file.
 
-### Common Issues
-
-1. **Authentication Failed**
-   - Check that R2 secrets are correctly set
-   - Verify R2 token permissions
-
-2. **Script Failures**
-   - Check workflow logs for specific error messages
-   - Download artifact logs for detailed debugging
-   - Verify AMFI API availability
-
-3. **Timeout Issues**
-   - Increase timeout values in GitHub Variables
-   - Check network connectivity to AMFI API
-
-### Getting Help
-
-- Review workflow run logs in the Actions tab
-- Check `GITHUB_ACTIONS_SETUP.md` for configuration details
-- Use the test script: `python scripts/test_github_actions_setup.py`
-
-## Best Practices
-
-1. **Test First:** Always test manually before relying on scheduled runs
-2. **Monitor Regularly:** Check workflow status weekly
-3. **Keep Updated:** Update dependencies in `requirements.txt` regularly
-4. **Security:** Rotate R2 API tokens quarterly
+Current automation does not run historical backfills, local metadata cleaning,
+scheme master-data rebuilding, AUM ingestion, or NAV validation.

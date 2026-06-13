@@ -1,60 +1,69 @@
-# Script Inventory and Execution Order
+# Script Inventory
 
-## Current Active Scripts (DuckDB-based Pipeline)
+All executable modules are under `scripts/` and can be run with
+`python -m scripts.<module>` from the repository root.
 
-### 1. Data Fetching Scripts
-- **`01_fetch_historical_nav.py`** - Fetches historical NAV data from AMFI (initial setup only)
-- **`03_fetch_daily_nav.py`** - Fetches current daily NAV data with gap-filling logic
+## Core NAV Scripts
 
-### 2. Data Processing Scripts (DuckDB-based)
-- **`02_clean_historical_nav_duckdb.py`** ✅ **ACTIVE** - Processes all historical CSV files into single merged Parquet using DuckDB
-- **`04_create_combined_table.py`** ✅ **ACTIVE** - DuckDB-based script to combine historical + daily data
-- **`05_extract_scheme_metadata.py`** ✅ **ACTIVE** - Extracts fresh scheme metadata from AMFI
-- **`06_clean_scheme_metadata.py`** ✅ **ACTIVE** - Cleans metadata with enhanced categorization (Direct/Regular, Growth/Dividend)
+| Script | Status | Reads | Writes |
+| --- | --- | --- | --- |
+| `fetch_historical_nav.py` | Active, manual | AMFI historical NAV endpoint | Chunked CSV files under `data/raw/nav_historical/` |
+| `transform_historical_nav.py` | Active, manual | Local historical CSV files | R2 `mutual_funds/raw/nav_historical.parquet` |
+| `fetch_daily_nav.py` | Active, scheduled | AMFI and dated raw NAV object names in R2 | Dated raw NAV Parquet in R2 |
+| `daily_nav_clean.py` | Legacy compatibility, still scheduled | Raw NAV and clean scheme metadata in R2 | R2 `mutual_funds/clean/nav_daily_growth_plan.parquet` |
+| `generate_nav_validation_report.py` | Active, manual | Clean daily NAV in R2 | Local CSV report under `data/reports/` |
 
-### 3. Analytical Scripts (DuckDB-based)
-- **`07_create_analytical_nav_daily_duckdb.py`** ✅ **ACTIVE** - Creates analytical view using DuckDB (handles large datasets)
+## Scheme Metadata Scripts
 
-## Obsolete/Archive Scripts
+| Script | Status | Reads | Writes |
+| --- | --- | --- | --- |
+| `extract_scheme_metadata.py` | Active, scheduled | AMFI scheme download | Dated raw metadata Parquet in R2 |
+| `clean_scheme_metadata.py` | Active, local | Latest local timestamped metadata CSV | Clean local CSV and Parquet |
+| `build_scheme_masterdata.py` | Active, local | Clean local metadata and prior master data | Updated local master-data CSV and Parquet |
+| `demo_masterdata.py` | Demonstration only | Synthetic in-memory data | Console output/demo files as coded |
 
-### Legacy Memory-based Scripts
-- **`02_clean_historical_nav.py`** ❌ **OBSOLETE** - Old batch processing approach, replaced by DuckDB version
-- **`04_create_combined_table_duckdb.py`** ❌ **OBSOLETE** - Standalone DuckDB script, functionality merged into main script 04
-- **`07_create_analytical_nav_daily.py`** ❌ **OBSOLETE** - Memory-based approach, replaced by DuckDB version
-- **`08_create_complete_analytical_view.py`** ❌ **OBSOLETE** - Alternative approach, superseded by DuckDB script 07
+The scheduled extractor does not feed the local cleaner automatically. It also
+does not create the canonical R2 `clean/scheme_metadata.parquet` expected by
+`daily_nav_clean.py`.
 
-### Archive/Example Scripts
-- **`07_config_example.py`** ❌ **ARCHIVE** - Configuration example, not part of pipeline
-- **`archive_clean_nav_data.py`** ❌ **ARCHIVE** - Old cleaning script
-- **`archive_fetch_amfi_nav_complex.py`** ❌ **ARCHIVE** - Legacy fetching script
+## Supporting Data Scripts
 
-### External/Optional Scripts
-- **`ingest_zerodha_mf.py`** ❓ **OPTIONAL** - Zerodha data integration (separate workflow)
+| Script | Status | Purpose |
+| --- | --- | --- |
+| `fetch_aum_data.py` | Active, on demand | Fetch AMFI scheme-wise average AUM for selected financial years and periods |
+| `load_benchmark_data.py` | Active, scheduled | Copy upstream NIFTY Delta data to clean mutual-fund benchmark Parquet in R2 |
+| `ingest_zerodha_mf.py` | Optional | Fetch the Zerodha mutual-fund instrument dump and upload a dated CSV to R2 |
 
-## Recommended Execution Order
+## Diagnostics
 
-### Initial Setup (One-time)
-1. `01_fetch_historical_nav.py` - Download historical data (if not already done)
-2. `02_clean_historical_nav_duckdb.py` - Process all historical CSV files
+| Script | Status | Purpose |
+| --- | --- | --- |
+| `test_github_actions_setup.py` | Manual diagnostic | Check environment variables, R2 connectivity, dependencies, and script availability |
 
-### Regular Pipeline (Daily/Weekly)
-1. `03_fetch_daily_nav.py` - Get latest daily NAV data
-2. `05_extract_scheme_metadata.py` - Get fresh metadata (weekly)
-3. `06_clean_scheme_metadata.py` - Process metadata with enhancements
-4. `04_create_combined_table.py` - Merge historical + daily data (if needed)
-5. `07_create_analytical_nav_daily_duckdb.py` - Create analytical dataset
+Focused unit tests for daily NAV checkpoint and gap behavior live under
+`tests/test_fetch_daily_nav.py` and run with:
 
-## Current Pipeline Status
-✅ **Complete historical data**: 2006-2025 (25.6M records) via DuckDB processing
-✅ **Enhanced metadata**: Direct/Regular, Growth/Dividend classification
-✅ **Daily updates**: Gap-filling through September 2025
-✅ **Memory efficient**: All major scripts use DuckDB for large dataset processing
+```bash
+python -m unittest discover -s tests -v
+```
 
-## Files to Archive
-Move these to `scripts/archive/` folder:
-- `02_clean_historical_nav.py`
-- `04_create_combined_table_duckdb.py`
-- `07_create_analytical_nav_daily.py`
-- `08_create_complete_analytical_view.py`
-- `07_config_example.py`
-- `archive_*.py` files
+Despite its name, `test_github_actions_setup.py` is not a unit test and is not
+run by a test framework.
+
+## Shared Modules
+
+| Module | Purpose |
+| --- | --- |
+| `config/settings.py` | Paths, R2 connection setup, AMFI endpoints, retry settings, validation constants, and environment configuration |
+| `utils/nav_helpers.py` | AMFI NAV column mapping, cleaning, and DuckDB Parquet writes |
+| `utils/logging_setup.py` | File and console logger setup plus common logging helpers |
+
+## Removed Pipeline Generation
+
+Older documentation referred to numbered scripts such as
+`03_daily_nav_transform.py`, `04_create_combined_table.py`, and
+`07_create_analytical_nav_daily_duckdb.py`. Those files are not in the current
+repository and must not be used in runbooks.
+
+The local combined and analytical NAV Parquet files remain as historical
+artifacts, but no current script rebuilds them.

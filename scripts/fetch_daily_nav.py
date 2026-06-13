@@ -7,19 +7,61 @@ This script has been refactored to use centralized configuration and logging.
 """
 
 import argparse
-import requests
-import pandas as pd
+import re
 import time
 from datetime import datetime, date, timedelta
 from io import StringIO
+from pathlib import PurePosixPath
+
+import pandas as pd
+import requests
+
 from config.settings import R2, API
-from utils.nav_helpers import NAV_COLUMNS, clean_nav_dataframe, save_to_parquet
+from utils.nav_helpers import clean_nav_dataframe, save_to_parquet
+
+
+RAW_NAV_FILENAME_PATTERN = re.compile(r"^nav_daily_(\d{8})\.parquet$")
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Fetch daily NAV data from AMFI')
-    parser.add_argument('--date', type=str, help='Specific date to fetch (YYYYMMDD format)')
+    date_group = parser.add_mutually_exclusive_group()
+    date_group.add_argument(
+        '--date', type=str,
+        help='Specific date to fetch (YYYYMMDD format); bypasses gap detection')
+    date_group.add_argument(
+        '--bootstrap-date', type=str,
+        help='First date to fetch when no raw daily NAV objects exist (YYYYMMDD)')
     return parser.parse_args()
+
+
+def parse_raw_nav_date(object_path: str):
+    """Extract a date from a canonical raw daily NAV object path."""
+    filename = PurePosixPath(object_path).name
+    match = RAW_NAV_FILENAME_PATTERN.fullmatch(filename)
+    if not match:
+        return None
+    try:
+        return pd.Timestamp(datetime.strptime(match.group(1), '%Y%m%d').date())
+    except ValueError:
+        return None
+
+
+def get_latest_raw_nav_date(connection, r2: R2):
+    """Return the latest date represented by raw daily NAV object names."""
+    raw_glob = r2.get_full_path('raw', 'nav_daily_*')
+    object_paths = [
+        row[0]
+        for row in connection.execute(
+            "SELECT file FROM glob(?)", [raw_glob]
+        ).fetchall()
+    ]
+    raw_dates = [
+        parsed_date
+        for path in object_paths
+        if (parsed_date := parse_raw_nav_date(path)) is not None
+    ]
+    return max(raw_dates, default=None)
 
 
 def fetch_daily_nav_data(start_date_str: str) -> pd.DataFrame:
@@ -75,9 +117,13 @@ def is_weekend(check_date):
     return check_date.weekday() >= 5
 
 
-def get_missing_dates(latest_historical_date):
+def get_missing_dates(latest_historical_date, through_date=None):
     """
-    Get list of missing dates between latest historical and today.
+    Get missing weekdays through the latest expected published date.
+
+    By default, the cutoff is yesterday because the scheduled morning run
+    collects the prior day's completed AMFI NAV data.
+
     Excludes weekends as markets are closed.
 
     Args:
@@ -87,13 +133,13 @@ def get_missing_dates(latest_historical_date):
         list: List of missing dates (excluding weekends)
     """
     if latest_historical_date is None:
-        return [pd.Timestamp(date.today())]
+        raise ValueError("latest_historical_date is required")
 
     missing_dates = []
-    current_date = latest_historical_date + timedelta(days=1)
-    today = pd.Timestamp(date.today())
+    current_date = pd.Timestamp(latest_historical_date) + timedelta(days=1)
+    cutoff = pd.Timestamp(through_date or (date.today() - timedelta(days=1)))
 
-    while current_date <= today:
+    while current_date <= cutoff:
         if not is_weekend(current_date):
             missing_dates.append(current_date.strftime('%Y%m%d'))
         current_date += timedelta(days=1)
@@ -101,25 +147,56 @@ def get_missing_dates(latest_historical_date):
     return missing_dates
 
 
+def resolve_dates_to_fetch(args, connection, r2: R2, through_date=None):
+    """Resolve explicit or gap-filled dates without reading clean NAV output."""
+    if args.date:
+        datetime.strptime(args.date, '%Y%m%d')
+        return [args.date]
+
+    latest_raw_date = get_latest_raw_nav_date(connection, r2)
+    if latest_raw_date is None:
+        if not args.bootstrap_date:
+            raise RuntimeError(
+                "No raw daily NAV objects found. Re-run with "
+                "--bootstrap-date YYYYMMDD to initialize the prefix."
+            )
+        bootstrap_date = pd.Timestamp(
+            datetime.strptime(args.bootstrap_date, '%Y%m%d').date()
+        )
+        latest_raw_date = bootstrap_date - timedelta(days=1)
+        print(f"No raw watermark found; bootstrapping from {args.bootstrap_date}")
+    else:
+        print(f"Latest raw NAV watermark: {latest_raw_date:%Y-%m-%d}")
+
+    return get_missing_dates(latest_raw_date, through_date=through_date)
+
+
 def main():
     args = parse_args()
+    conn = None
 
     try:
         r2 = R2()
         conn = r2.setup_connection()
 
-        if args.date:
-            dates = [args.date]  # use specific date provided
-        else:
-            # existing logic: find missing dates
-            historical_path = r2.get_full_path('clean', 'nav_daily_growth_plan')
-            max_date_available = conn.read_parquet(
-                historical_path).max('date').execute().df().iloc[0, 0]
-            dates = get_missing_dates(max_date_available)
+        dates = resolve_dates_to_fetch(args, conn, r2)
+        if not dates:
+            print("No missing weekday NAV dates to fetch.")
+            return True
+
+        print(f"Dates to fetch ({len(dates)}): {', '.join(dates)}")
 
         for date_str in dates:
             raw_df = fetch_daily_nav_data(start_date_str=date_str)
+            if raw_df is None or raw_df.empty:
+                print(f"Stopping at {date_str}; no raw NAV data was fetched.")
+                return False
+
             clean_df = clean_nav_dataframe(raw_df)
+            if clean_df.empty:
+                print(f"Stopping at {date_str}; fetched NAV data contained no valid rows.")
+                return False
+
             daily_path = r2.get_full_path('raw', f'nav_daily_{date_str}')
             save_to_parquet(conn, f'nav_daily_raw_{date_str}', clean_df, daily_path)
             print(f"Successfully created daily NAV Parquet file at {daily_path}")
@@ -128,8 +205,11 @@ def main():
     except Exception as e:
         print(f"Error during processing: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
     return True
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(0 if main() else 1)

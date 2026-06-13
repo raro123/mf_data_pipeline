@@ -1,124 +1,184 @@
-# Mutual Fund Data Pipeline - Execution Order
+# Pipeline Execution Order
 
-## Current Active Scripts (Post-DuckDB Migration)
+This document describes the current executable pipeline. It separates the R2
+production flow from local maintenance tasks because they are not fully joined
+yet.
 
-### Active Scripts Directory: `/scripts/`
-1. **`fetch_historical_nav.py`** - Historical data fetcher (one-time)
-2. **`transform_historical_nav.py`** - DuckDB-based historical processor (one-time)
-3. **`fetch_daily_nav.py`** - Daily NAV fetcher with gap-filling
-4. **`daily_nav_clean.py`** - Daily NAV cleaner (joins with metadata)
-5. **`extract_scheme_metadata.py`** - Metadata extractor
-6. **`clean_scheme_metadata.py`** - Enhanced metadata processor
-7. **`build_scheme_masterdata.py`** - Scheme masterdata builder
-8. **`fetch_aum_data.py`** - Scheme-wise AUM fetcher (on-demand)
-9. **`ingest_zerodha_mf.py`** - Optional Zerodha integration
-10. **`load_benchmark_data.py`** - Benchmark data loader
+## Prerequisites
 
-### Archived Scripts: `/scripts/archive/`
-- Legacy memory-based processing scripts
-- Experimental and duplicate implementations
+1. Install dependencies from `requirements.txt`.
+2. Set `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `R2_ACCOUNT_ID` for any
+   R2-backed command.
+3. Initialize local directories:
 
----
-
-## Execution Workflows
-
-### Initial Setup (One-time only)
 ```bash
-# 1. Download historical data (if not already done)
-python -m scripts.fetch_historical_nav
+python -c "from config.settings import initialize_project; initialize_project()"
+```
 
-# 2. Process ALL historical CSV files (2006-2025) using DuckDB
+## 1. Historical NAV Backfill
+
+Run this for initial setup or an explicit historical repair.
+
+```bash
+python -m scripts.fetch_historical_nav \
+  --start 20060101 \
+  --end YYYYMMDD
+
 python -m scripts.transform_historical_nav
 ```
 
-### Daily/Weekly Pipeline
+Flow:
+
+```text
+AMFI historical endpoint
+  -> data/raw/nav_historical/amfi_raw_nav_<start>_<end>.csv
+  -> R2 mutual_funds/raw/nav_historical.parquet
+```
+
+`fetch_historical_nav` skips existing chunks unless `--force` is supplied.
+`transform_historical_nav` currently concatenates all local CSV files with
+Pandas, so memory usage grows with the backfill size.
+
+## 2. Daily NAV Production Flow
+
+Run in this order:
+
 ```bash
-# 1. Get latest daily NAV data
 python -m scripts.fetch_daily_nav
-
-# 2. Clean and enrich daily NAV data
 python -m scripts.daily_nav_clean
+```
 
-# 3. Get fresh metadata (weekly recommended)
+Flow:
+
+```text
+R2 raw/nav_daily_<YYYYMMDD>.parquet object names
+  -> determine latest raw checkpoint
+AMFI historical endpoint
+  -> R2 raw/nav_daily_<YYYYMMDD>.parquet
+R2 raw Parquet + R2 clean/scheme_metadata.parquet
+  -> R2 clean/nav_daily_growth_plan.parquet (temporary legacy output)
+```
+
+Notes:
+
+- Weekends are skipped; exchange holidays are not precomputed.
+- The default cutoff is yesterday, matching the morning schedule that collects
+  the prior day's completed AMFI NAV publication.
+- Raw checkpoint discovery only accepts canonical
+  `nav_daily_<YYYYMMDD>.parquet` names and ignores unrelated objects.
+- If no raw daily objects exist, pass `--bootstrap-date YYYYMMDD`. The
+  bootstrap date is inclusive.
+- `fetch_daily_nav --date YYYYMMDD` fetches a specific date.
+- `daily_nav_clean --date YYYYMMDD` still writes to the canonical clean output
+  path. Use it only when deliberately replacing that output with the selected
+  raw date; the scheduled full rebuild does not pass `--date`.
+- The clean step performs an inner join to metadata and keeps rows where
+  `is_growth_plan = TRUE`.
+- The current code expects a canonical R2
+  `mutual_funds/clean/scheme_metadata.parquet` file, but this repository does
+  not currently build that file from the scheduled metadata extraction job.
+  This dependency belongs only to the temporarily retained legacy clean step,
+  not to raw NAV extraction.
+- A failed date stops the fetch loop and returns a nonzero process exit code,
+  preventing a later raw object from advancing the checkpoint past the gap.
+
+Optional validation after cleaning:
+
+```bash
+python -m scripts.generate_nav_validation_report
+```
+
+The report compares daily scheme counts with a rolling baseline and writes a
+CSV under `data/reports/`. It is not currently scheduled.
+
+## 3. Scheme Metadata
+
+### R2 extraction
+
+```bash
 python -m scripts.extract_scheme_metadata
+```
 
-# 4. Process metadata with enhanced classifications
+This downloads AMFI scheme metadata and writes a dated raw Parquet file to:
+
+```text
+r2://financial-data-store/mutual_funds/metadata/scheme_metadata_<YYYYMMDD>.parquet
+```
+
+### Local cleaning and master data
+
+Given a timestamped AMFI CSV under `data/raw/scheme_metadata/`:
+
+```bash
 python -m scripts.clean_scheme_metadata
-
-# 5. Build comprehensive scheme masterdata
 python -m scripts.build_scheme_masterdata
 ```
 
-### Full Refresh Pipeline
+The cleaner creates:
+
+- `data/processed/scheme_metadata/amfi_scheme_metadata.parquet`
+- `data/processed/scheme_metadata/amfi_scheme_metadata.csv`
+
+The master-data builder creates:
+
+- `data/processed/scheme_metadata/scheme_masterdata.parquet`
+- `data/processed/scheme_metadata/scheme_masterdata.csv`
+
+The master data preserves missing schemes as inactive and tracks
+`first_seen_date`, `last_seen_date`, and `attribute_last_updated`.
+
+The R2 extraction and local cleaning flows are currently separate. A future
+pipeline change should choose one canonical handoff and schedule cleaning plus
+master-data rebuilding.
+
+## 4. Scheme-wise AUM
+
+Run on demand:
+
 ```bash
-# If you need to rebuild everything from scratch:
-python -m scripts.transform_historical_nav    # Historical data
-python -m scripts.fetch_daily_nav             # Daily updates
-python -m scripts.daily_nav_clean             # Clean daily data
-python -m scripts.extract_scheme_metadata     # Fresh metadata
-python -m scripts.clean_scheme_metadata       # Enhanced processing
-python -m scripts.build_scheme_masterdata     # Masterdata
+python -m scripts.fetch_aum_data
+python -m scripts.fetch_aum_data --years 3
+python -m scripts.fetch_aum_data --fy 1 --period 1
 ```
 
-### Optional: Scheme-wise AUM Data
+The job writes a dated local Parquet file under
+`data/processed/aum_schemewise/` and uploads the same data under the R2
+`mutual_funds/aum/` prefix.
+
+## 5. Benchmark Data
+
 ```bash
-# Fetch AUM data (on-demand, not scheduled)
-python -m scripts.fetch_aum_data              # Fetch last 5 years
-python -m scripts.fetch_aum_data --years 3    # Fetch last 3 years
-python -m scripts.fetch_aum_data --fy 1 --period 1  # Specific quarter
+python -m scripts.load_benchmark_data
 ```
 
----
+This copies an upstream NIFTY Delta table at
+`r2://financial-data-store/bronze/nseindex/daily_price_nifty_indices` to
+`r2://financial-data-store/mutual_funds/clean/mf_benchmark_nifty.parquet`.
 
-## Current Data Status
+## 6. Zerodha Instruments
 
-### Completed Components
-- **Historical Data**: 25.6M records (2006-2025) processed via DuckDB
-- **Daily Updates**: Gap-filled through September 2025
-- **Enhanced Metadata**: 16K schemes with Direct/Regular and Growth/Dividend classification
-- **Analytical Dataset**: Ready for analysis with all enhancements
+```bash
+python -m scripts.ingest_zerodha_mf
+```
 
-### Technical Improvements
-- **Memory Efficient**: DuckDB handles large datasets without memory issues
-- **Performance**: ~15 seconds to process 89 CSV files (vs hours with pandas)
-- **Scalable**: Can handle 25M+ records without performance degradation
-- **Robust**: Professional logging and error handling throughout
+This is a separate optional workflow. It requires Kite Connect credentials and
+uploads a dated CSV instrument dump to R2. It is not scheduled by this
+repository.
 
----
+## GitHub Actions Order
 
-## Key Features
+The active schedules are independent:
 
-### Enhanced Scheme Classification
-- **Direct vs Regular Plans**: Automatic detection from scheme names
-- **Growth vs Dividend/IDCW**: Comprehensive pattern matching
-- **Category Levels**: Level 1 (5 main types) + Level 2 (49 sub-categories)
+1. Weekly metadata extraction: Saturday at 01:00 UTC / 06:30 IST.
+2. Daily NAV processing: every day at 04:00 UTC / 09:30 IST.
+3. Daily benchmark loading: every day at 18:30 UTC / 00:00 IST next day.
 
-### Data Quality
-- **Validation**: NAV range validation, null checking
-- **Deduplication**: Automatic removal of duplicate records
-- **Gap Filling**: Intelligent daily data fetching with missing date detection
+There is no workflow that orchestrates a full historical rebuild, local
+metadata cleaning, master-data building, AUM fetching, or NAV validation.
 
-### Performance Optimizations
-- **DuckDB Integration**: Memory-efficient processing for large datasets
-- **Categorical Types**: Optimized storage for repeated string values
-- **Parquet Format**: Compressed columnar storage with Snappy compression
+## Legacy Local Artifacts
 
----
-
-## Shared Utilities
-
-Common NAV processing utilities are in `utils/nav_helpers.py`:
-- `NAV_COLUMNS` - Standard column names from AMFI
-- `NAV_COLUMN_MAPPING` - Column name mapping
-- `clean_nav_dataframe()` - Standardize NAV DataFrames
-- `save_to_parquet()` - Save DataFrames via DuckDB
-
----
-
-## Next Steps
-
-1. **Test the complete pipeline** with the DuckDB-based analytical script
-2. **Set up scheduling** for daily/weekly execution
-3. **Implement monitoring** and alerting for pipeline health
-
-The pipeline is now optimized, organized, and ready for production use!
+The local files `data/processed/nav_combined/raw_nav_table.parquet` and
+`data/processed/analytical/nav_daily_data.parquet` were generated by scripts
+that are no longer present. Treat them as snapshots, not reproducible current
+pipeline outputs.
