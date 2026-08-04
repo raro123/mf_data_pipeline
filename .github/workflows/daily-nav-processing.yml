@@ -75,6 +75,18 @@ jobs:
         cd ${{ github.workspace }}
         python -m scripts.fetch_daily_nav
 
+    - name: Dispatch datalake NAV ingestion
+      env:
+        GH_TOKEN: ${{ secrets.DATALAKE_DISPATCH_TOKEN }}
+      run: |
+        gh api --method POST repos/raro123/datalake/dispatches \
+          -f event_type=mf-nav-raw-ingestion-completed \
+          -f "client_payload[source_repository]=${{ github.repository }}" \
+          -f "client_payload[source_workflow]=${{ github.workflow }}" \
+          -f "client_payload[source_run_id]=${{ github.run_id }}" \
+          -f "client_payload[source_run_attempt]=${{ github.run_attempt }}" \
+          -f "client_payload[source_sha]=${{ github.sha }}"
+
     - name: Upload logs on failure
       if: failure()
       uses: actions/upload-artifact@v4
