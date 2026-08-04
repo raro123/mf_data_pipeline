@@ -70,8 +70,6 @@ Daily R2 NAV flow:
 
 ```bash
 python -m scripts.fetch_daily_nav
-python -m scripts.daily_nav_clean
-python -m scripts.generate_nav_validation_report
 ```
 
 For an empty raw NAV prefix, initialize extraction explicitly:
@@ -111,7 +109,7 @@ python -m scripts.test_github_actions_setup
 
 | Workflow | Schedule | Main modules |
 | --- | --- | --- |
-| Daily NAV | `0 4 * * *` | `fetch_daily_nav`, `daily_nav_clean` |
+| Daily NAV | `0 4 * * *` | `fetch_daily_nav` |
 | Scheme metadata | `0 1 * * 6` | `extract_scheme_metadata` |
 | NIFTY benchmark | `30 18 * * *` | `load_benchmark_data` |
 
@@ -130,12 +128,11 @@ These flows are not connected. The scheduled metadata job does not:
 
 - run the local cleaner;
 - rebuild scheme master data; or
-- publish `mutual_funds/clean/scheme_metadata.parquet`.
+- publish a canonical clean metadata object to R2.
 
-That canonical R2 metadata object is nevertheless required by
-`daily_nav_clean.py`. It is not required by `fetch_daily_nav.py`, whose
-checkpoint comes from dated raw NAV object names. Preserve this distinction in
-code changes and docs until the legacy clean step is retired.
+The canonical NAV tables are built by the datalake from raw NAV objects. The
+deprecated repository-side clean utility is no longer part of scheduled
+processing.
 
 ### Raw NAV extraction is independent of clean outputs
 
@@ -160,11 +157,11 @@ No current script rebuilds:
 
 Do not infer current R2 state from these local files.
 
-### Validation is manual
+### Validation is owned by the datalake
 
-`generate_nav_validation_report.py` exists but is not part of the daily GitHub
-Actions workflow. It uses a rolling scheme-count baseline and writes a local
-CSV report.
+The former local NAV validation report read the retired clean Parquet output and
+has been removed. Validate freshness and completeness against the canonical
+datalake tables.
 
 ## Configuration
 
@@ -236,5 +233,5 @@ Parquet unless an existing workflow explicitly needs CSV for inspection.
    `SCRIPT_INVENTORY.md` when behavior or orchestration changes.
 5. If a workflow changes, also update `GITHUB_ACTIONS_SETUP.md` and
    `.github/workflows/README.md`.
-6. Keep `MIGRATION_STATUS.md` current while the legacy NAV clean step remains
-   scheduled.
+6. Keep `MIGRATION_STATUS.md` current during the legacy R2 object-retirement
+   window.

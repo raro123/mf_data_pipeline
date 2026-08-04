@@ -75,14 +75,6 @@ jobs:
         cd ${{ github.workspace }}
         python -m scripts.fetch_daily_nav
 
-    # Temporarily retained while consumers migrate fully to datalake tables.
-    - name: Run legacy daily NAV clean script
-      if: steps.daily_transform.outcome == 'success'
-      run: |
-        echo "Starting daily NAV clean script..."
-        cd ${{ github.workspace }}
-        python -m scripts.daily_nav_clean
-
     - name: Upload logs on failure
       if: failure()
       uses: actions/upload-artifact@v4

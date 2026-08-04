@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Daily NAV Data Cleaner
+Daily NAV Data Cleaner (deprecated rollback utility)
 
-Joins raw NAV data with scheme metadata to create enriched daily NAV data.
-Filters for growth plans only.
+This module is no longer scheduled or authoritative. The datalake builds the
+canonical NAV tables directly from raw NAV snapshots. Retain this utility only
+for a short rollback window while legacy R2 objects are archived or retired.
 """
 
 import argparse

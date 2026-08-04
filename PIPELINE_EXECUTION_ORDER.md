@@ -45,7 +45,6 @@ Run in this order:
 
 ```bash
 python -m scripts.fetch_daily_nav
-python -m scripts.daily_nav_clean
 ```
 
 Flow:
@@ -55,8 +54,10 @@ R2 raw/nav_daily_<YYYYMMDD>.parquet object names
   -> determine latest raw checkpoint
 AMFI historical endpoint
   -> R2 raw/nav_daily_<YYYYMMDD>.parquet
-R2 raw Parquet + R2 clean/scheme_metadata.parquet
-  -> R2 clean/nav_daily_growth_plan.parquet (temporary legacy output)
+Datalake ingestion
+  -> mf.raw_nav_daily
+  -> mf.nav_daily
+  -> mf.nav_daily_open_growth
 ```
 
 Notes:
@@ -69,27 +70,8 @@ Notes:
 - If no raw daily objects exist, pass `--bootstrap-date YYYYMMDD`. The
   bootstrap date is inclusive.
 - `fetch_daily_nav --date YYYYMMDD` fetches a specific date.
-- `daily_nav_clean --date YYYYMMDD` still writes to the canonical clean output
-  path. Use it only when deliberately replacing that output with the selected
-  raw date; the scheduled full rebuild does not pass `--date`.
-- The clean step performs an inner join to metadata and keeps rows where
-  `is_growth_plan = TRUE`.
-- The current code expects a canonical R2
-  `mutual_funds/clean/scheme_metadata.parquet` file, but this repository does
-  not currently build that file from the scheduled metadata extraction job.
-  This dependency belongs only to the temporarily retained legacy clean step,
-  not to raw NAV extraction.
 - A failed date stops the fetch loop and returns a nonzero process exit code,
   preventing a later raw object from advancing the checkpoint past the gap.
-
-Optional validation after cleaning:
-
-```bash
-python -m scripts.generate_nav_validation_report
-```
-
-The report compares daily scheme counts with a rolling baseline and writes a
-CSV under `data/reports/`. It is not currently scheduled.
 
 ## 3. Scheme Metadata
 
@@ -185,7 +167,7 @@ pipeline outputs.
 
 ## Migration Follow-up
 
-Raw NAV extraction is now independent of legacy clean output. The legacy
-`daily_nav_clean` workflow step remains temporarily active until a new weekday
-fetch has been observed end to end through `mf.nav_daily`. Follow the rollout
-and retirement checklist in `MIGRATION_STATUS.md`.
+Raw NAV extraction is independent of legacy clean output, and the legacy clean
+workflow step has been retired after end-to-end observation through
+`mf.nav_daily`. Follow the remaining R2 object-retirement guidance in
+`MIGRATION_STATUS.md`.
