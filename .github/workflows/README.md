@@ -8,13 +8,11 @@
 
 ```bash
 python -m scripts.fetch_daily_nav
-python -m scripts.daily_nav_clean
 ```
 
 The job gap-fills raw NAV in R2 using dated raw object names as its checkpoint.
-It then temporarily rebuilds the legacy clean growth-plan NAV dataset. Only
-that legacy clean step requires an existing R2
-`mutual_funds/clean/scheme_metadata.parquet` object.
+The datalake consumes these raw objects and publishes the canonical NAV tables;
+the former repository-side clean step is no longer scheduled.
 
 ## `extract-scheme-metadata.yml`
 

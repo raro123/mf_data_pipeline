@@ -19,7 +19,7 @@ The repository currently uses a hybrid architecture:
 | --- | --- | --- |
 | Raw historical NAV | AMFI NAV history downloaded in date chunks | `data/raw/nav_historical/` and R2 |
 | Raw daily NAV | Missing weekday NAV snapshots from AMFI | R2 `mutual_funds/raw/` |
-| Clean daily NAV | NAV joined to scheme metadata, limited to growth plans | R2 `mutual_funds/clean/nav_daily_growth_plan.parquet` |
+| Canonical daily NAV | Enriched NAV and open-growth analysis tables | DuckLake `mf.nav_daily` and `mf.nav_daily_open_growth` |
 | Scheme metadata | AMFI scheme attributes and plan classification | Local `data/processed/scheme_metadata/` |
 | Scheme master data | All schemes ever observed, including inactive schemes | Local `data/processed/scheme_metadata/` |
 | Scheme-wise AUM | Quarterly AMFI average AUM | Local dated Parquet and R2 `mutual_funds/aum/` |
@@ -35,7 +35,7 @@ r2://financial-data-store/mutual_funds/<area>/<file>.parquet
 
 | Workflow | Schedule | Commands |
 | --- | --- | --- |
-| Daily NAV processing | Daily at 04:00 UTC / 09:30 IST | `fetch_daily_nav`, then `daily_nav_clean` |
+| Daily NAV processing | Daily at 04:00 UTC / 09:30 IST | `fetch_daily_nav` |
 | Scheme metadata extraction | Saturday at 01:00 UTC / 06:30 IST | `extract_scheme_metadata` |
 | Benchmark loading | Daily at 18:30 UTC / 00:00 IST next day | `load_benchmark_data` |
 
@@ -77,8 +77,6 @@ Daily R2 NAV update:
 
 ```bash
 python -m scripts.fetch_daily_nav
-python -m scripts.daily_nav_clean
-python -m scripts.generate_nav_validation_report
 ```
 
 `fetch_daily_nav` derives its checkpoint from dated raw objects under
@@ -91,9 +89,9 @@ explicitly with:
 python -m scripts.fetch_daily_nav --bootstrap-date YYYYMMDD
 ```
 
-`daily_nav_clean` is temporarily retained in the scheduled workflow for
-legacy consumers. The datalake independently builds canonical `mf.nav_daily`
-and `mf.nav_daily_open_growth` datasets from raw NAV files.
+The datalake independently builds canonical `mf.nav_daily` and
+`mf.nav_daily_open_growth` datasets from raw NAV files. The former
+repository-side clean step is no longer scheduled or required.
 
 Local scheme metadata and master-data refresh:
 
@@ -140,22 +138,18 @@ notebooks/              Exploratory analysis
   transformation.
 - The large local combined and analytical Parquet files are retained snapshots
   from an older pipeline generation; no current script rebuilds them.
-- NAV validation exists as a manual script but is not part of the daily GitHub
-  Actions workflow.
-- The scheduled daily workflow still rebuilds the legacy R2
-  `clean/nav_daily_growth_plan.parquet` output after raw extraction. Raw
-  extraction no longer depends on that file, allowing this step to be retired
-  after consumer verification.
+- NAV freshness and completeness validation belongs with the datalake tables;
+  the former report over the legacy clean Parquet has been retired.
 - Unit coverage currently focuses on daily NAV checkpoint and gap behavior.
   `test_github_actions_setup.py` remains a separate environment and
   connectivity diagnostic rather than a unit test.
 
 ## Migration Status
 
-The raw NAV fetcher is now decoupled from the legacy clean NAV output. The code
-is deployed, while verification of its first new weekday fetch is still
-pending. See `MIGRATION_STATUS.md` for live dates, acceptance checks, and the
-retirement sequence for legacy clean processing.
+The raw NAV fetcher is decoupled from the legacy clean NAV output, and the
+legacy clean step has been removed from scheduled processing. See
+`MIGRATION_STATUS.md` for the completed migration record and remaining R2
+retirement steps.
 
 ## More Documentation
 

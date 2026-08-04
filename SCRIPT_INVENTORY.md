@@ -10,8 +10,7 @@ All executable modules are under `scripts/` and can be run with
 | `fetch_historical_nav.py` | Active, manual | AMFI historical NAV endpoint | Chunked CSV files under `data/raw/nav_historical/` |
 | `transform_historical_nav.py` | Active, manual | Local historical CSV files | R2 `mutual_funds/raw/nav_historical.parquet` |
 | `fetch_daily_nav.py` | Active, scheduled | AMFI and dated raw NAV object names in R2 | Dated raw NAV Parquet in R2 |
-| `daily_nav_clean.py` | Legacy compatibility, still scheduled | Raw NAV and clean scheme metadata in R2 | R2 `mutual_funds/clean/nav_daily_growth_plan.parquet` |
-| `generate_nav_validation_report.py` | Active, manual | Clean daily NAV in R2 | Local CSV report under `data/reports/` |
+| `daily_nav_clean.py` | Deprecated rollback utility, not scheduled | Raw NAV and clean scheme metadata in R2 | Legacy R2 clean output, if explicitly invoked |
 
 ## Scheme Metadata Scripts
 
@@ -22,9 +21,8 @@ All executable modules are under `scripts/` and can be run with
 | `build_scheme_masterdata.py` | Active, local | Clean local metadata and prior master data | Updated local master-data CSV and Parquet |
 | `demo_masterdata.py` | Demonstration only | Synthetic in-memory data | Console output/demo files as coded |
 
-The scheduled extractor does not feed the local cleaner automatically. It also
-does not create the canonical R2 `clean/scheme_metadata.parquet` expected by
-`daily_nav_clean.py`.
+The scheduled extractor does not feed the local cleaner automatically. The
+local metadata flow remains separate from the datalake metadata flow.
 
 ## Supporting Data Scripts
 
@@ -68,8 +66,11 @@ repository and must not be used in runbooks.
 The local combined and analytical NAV Parquet files remain as historical
 artifacts, but no current script rebuilds them.
 
-## Migration Tracking
+## Retired Utilities
 
-See `MIGRATION_STATUS.md` for the deployed raw NAV checkpoint change, current
-R2 and datalake freshness, and the conditions for retiring
-`daily_nav_clean.py`.
+`generate_nav_validation_report.py` was retired because it read the legacy
+`clean/nav_daily_growth_plan.parquet` object. NAV freshness validation should
+query the canonical datalake tables instead.
+
+See `MIGRATION_STATUS.md` for the completed raw NAV migration and remaining
+R2 object-retirement steps.

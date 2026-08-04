@@ -68,16 +68,14 @@ mutual_funds/
 |-- metadata/
 |   `-- scheme_metadata_<YYYYMMDD>.parquet
 |-- clean/
-|   |-- scheme_metadata.parquet
-|   |-- nav_daily_growth_plan.parquet
 |   `-- mf_benchmark_nifty.parquet
 `-- aum/
     `-- aum_schemewise_<YYYYMMDD>.parquet
 ```
 
-`clean/scheme_metadata.parquet` is consumed by the daily NAV cleaner, but no
-current scheduled workflow creates it. It must already exist until metadata
-cleaning and publication are integrated into the R2 workflow.
+The dated raw NAV and metadata objects are the operational inputs. Canonical
+enriched NAV tables are published by the datalake rather than by this
+repository's scheduled workflows.
 
 ## Workflow Details
 
@@ -87,7 +85,6 @@ Runtime: Python 3.9 with dependencies installed by pip.
 
 ```bash
 python -m scripts.fetch_daily_nav
-python -m scripts.daily_nav_clean
 ```
 
 The fetcher reads its latest checkpoint from canonical raw object names under
@@ -95,10 +92,7 @@ The fetcher reads its latest checkpoint from canonical raw object names under
 requires `--bootstrap-date YYYYMMDD` when run manually. It fetches subsequent
 weekdays through yesterday from AMFI and writes dated raw Parquet files.
 
-The cleaner joins raw NAV to R2 scheme metadata and rewrites the clean
-growth-plan dataset. This second step is temporarily retained for legacy
-compatibility; the datalake builds its canonical NAV tables directly from raw
-objects.
+The datalake builds its canonical NAV tables directly from the raw objects.
 
 The workflow uploads `logs/` as a seven-day artifact on failure. The current
 daily scripts mostly print directly to the workflow log, so the artifact may
@@ -153,7 +147,6 @@ it is not a unit-test suite.
 | R2 authentication error | Secret names, token validity, account ID, and bucket permissions |
 | DuckDB extension failure | Runner network access and DuckDB extension installation/loading |
 | AMFI timeout or malformed response | AMFI availability, timeout variables, and response format |
-| Daily clean cannot read metadata | Presence and schema of `mutual_funds/clean/scheme_metadata.parquet` |
 | Benchmark `delta_scan` failure | Upstream path, read permission, and DuckDB Delta extension support |
 | No useful failure artifact | Read the GitHub Actions step log; not every script uses file logging |
 
