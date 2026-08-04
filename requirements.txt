@@ -1,6 +1,7 @@
 pyspark
 prefect
 pandas
+pyarrow
 requests
 boto3
 s3fs
