@@ -28,18 +28,18 @@ The job writes a dated raw AMFI metadata snapshot under the R2
 `mutual_funds/metadata/` prefix. It does not clean or publish canonical scheme
 metadata.
 
-## `load-benchmark-data.yml`
+## `fetch-aum-data.yml`
 
-- Schedule: daily at 18:30 UTC / 00:00 IST next day
-- Runtime: Python 3.9 and pip
+- Schedule: the 10th of Jan/Apr/Jul/Oct at 02:00 UTC / 07:30 IST
+- Runtime: Python 3.12 and uv
 - Command:
 
 ```bash
-python -m scripts.load_benchmark_data
+uv run python -m scripts.fetch_aum_data
 ```
 
-The job copies the upstream NIFTY Delta table to
-`mutual_funds/clean/mf_benchmark_nifty.parquet` in R2.
+The job writes a dated scheme-wise AUM Parquet snapshot under the R2
+`mutual_funds/aum/` prefix and dispatches successful uploads to the datalake.
 
 ## Shared Configuration
 

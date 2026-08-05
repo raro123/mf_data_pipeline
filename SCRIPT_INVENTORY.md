@@ -29,7 +29,6 @@ local metadata flow remains separate from the datalake metadata flow.
 | Script | Status | Purpose |
 | --- | --- | --- |
 | `fetch_aum_data.py` | Active, on demand | Fetch AMFI scheme-wise average AUM for selected financial years and periods |
-| `load_benchmark_data.py` | Active, scheduled | Copy upstream NIFTY Delta data to clean mutual-fund benchmark Parquet in R2 |
 | `ingest_zerodha_mf.py` | Optional | Fetch the Zerodha mutual-fund instrument dump and upload a dated CSV to R2 |
 
 ## Diagnostics
