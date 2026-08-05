@@ -9,13 +9,13 @@ run on schedule or through `workflow_dispatch` from the GitHub Actions tab.
 | --- | --- | --- |
 | `daily-nav-processing.yml` | `0 4 * * *` | Fetch missing daily NAV data and rebuild clean growth-plan NAV in R2 |
 | `extract-scheme-metadata.yml` | `0 1 * * 6` | Extract a dated raw AMFI scheme metadata snapshot to R2 |
-| `load-benchmark-data.yml` | `30 18 * * *` | Copy the upstream NIFTY Delta dataset to clean Parquet in R2 |
+| `fetch-aum-data.yml` | `0 2 10 1,4,7,10 *` | Fetch and publish a dated scheme-wise AUM snapshot to R2 |
 
 Schedule conversions:
 
 - 04:00 UTC is 09:30 IST on the same day.
 - Saturday 01:00 UTC is Saturday 06:30 IST.
-- 18:30 UTC is 00:00 IST on the following day.
+- 02:00 UTC on the 10th of a quarter month is 07:30 IST.
 
 India does not observe daylight saving time.
 
@@ -30,9 +30,6 @@ Configure these under **Settings > Secrets and variables > Actions**:
 | `R2_ACCOUNT_ID` | Cloudflare account ID used by DuckDB's R2 secret |
 
 The token must be able to read and write the `financial-data-store` bucket.
-The benchmark workflow also needs read access to the upstream
-`bronze/nseindex/daily_price_nifty_indices` object path.
-
 Never commit these values. Local credentials belong in `.env`, which is
 gitignored.
 
@@ -67,8 +64,6 @@ mutual_funds/
 |   `-- nav_daily_<YYYYMMDD>.parquet
 |-- metadata/
 |   `-- scheme_metadata_<YYYYMMDD>.parquet
-|-- clean/
-|   `-- mf_benchmark_nifty.parquet
 `-- aum/
     `-- aum_schemewise_<YYYYMMDD>.parquet
 ```
@@ -110,16 +105,16 @@ This job only extracts a dated raw metadata Parquet file to R2. It does not run
 `clean_scheme_metadata.py`, publish `clean/scheme_metadata.parquet`, or rebuild
 local scheme master data.
 
-### Daily Benchmark Loading
+### Quarterly Scheme-wise AUM Extraction
 
-Runtime: Python 3.9 with dependencies installed by pip.
+Runtime: Python 3.12 with dependencies installed by uv.
 
 ```bash
-python -m scripts.load_benchmark_data
+uv run python -m scripts.fetch_aum_data
 ```
 
-This reads the upstream NIFTY Delta table and overwrites the clean mutual-fund
-benchmark Parquet object.
+This fetches the requested scheme-wise AUM period, writes a dated Parquet
+snapshot to R2, and dispatches the successful upload to the datalake.
 
 ## Manual Verification
 
@@ -147,7 +142,6 @@ it is not a unit-test suite.
 | R2 authentication error | Secret names, token validity, account ID, and bucket permissions |
 | DuckDB extension failure | Runner network access and DuckDB extension installation/loading |
 | AMFI timeout or malformed response | AMFI availability, timeout variables, and response format |
-| Benchmark `delta_scan` failure | Upstream path, read permission, and DuckDB Delta extension support |
 | No useful failure artifact | Read the GitHub Actions step log; not every script uses file logging |
 
 ## Operational Gaps
@@ -156,5 +150,5 @@ it is not a unit-test suite.
   not yet one automated workflow.
 - NAV validation is manual and does not gate the daily workflow.
 - Workflows print success/failure messages but do not send external alerts.
-- NAV and benchmark jobs use pip/Python 3.9 while metadata uses uv/Python 3.12.
+- NAV uses pip/Python 3.9 while metadata and AUM use uv/Python 3.12.
   Standardizing runtimes would reduce maintenance differences.

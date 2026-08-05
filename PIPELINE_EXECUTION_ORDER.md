@@ -127,17 +127,7 @@ The job writes a dated local Parquet file under
 `data/processed/aum_schemewise/` and uploads the same data under the R2
 `mutual_funds/aum/` prefix.
 
-## 5. Benchmark Data
-
-```bash
-python -m scripts.load_benchmark_data
-```
-
-This copies an upstream NIFTY Delta table at
-`r2://financial-data-store/bronze/nseindex/daily_price_nifty_indices` to
-`r2://financial-data-store/mutual_funds/clean/mf_benchmark_nifty.parquet`.
-
-## 6. Zerodha Instruments
+## 5. Zerodha Instruments
 
 ```bash
 python -m scripts.ingest_zerodha_mf
@@ -153,7 +143,11 @@ The active schedules are independent:
 
 1. Weekly metadata extraction: Saturday at 01:00 UTC / 06:30 IST.
 2. Daily NAV processing: every day at 04:00 UTC / 09:30 IST.
-3. Daily benchmark loading: every day at 18:30 UTC / 00:00 IST next day.
+3. Quarterly AUM extraction: the 10th of Jan/Apr/Jul/Oct at 02:00 UTC / 07:30 IST.
+
+NIFTY benchmark ingestion is owned by the separate `nifty_index_ingestion`
+repository. It publishes to the datalake, which feeds the active tearsheet
+benchmark table.
 
 There is no workflow that orchestrates a full historical rebuild, local
 metadata cleaning, master-data building, AUM fetching, or NAV validation.

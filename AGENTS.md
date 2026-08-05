@@ -4,7 +4,8 @@
 
 This repository collects and prepares Indian mutual-fund data, primarily from
 AMFI. Its main outputs are NAV history, enriched daily growth-plan NAV, scheme
-metadata and master data, scheme-wise AUM, and NIFTY benchmark data.
+metadata and master data, and scheme-wise AUM. NIFTY benchmark data is
+maintained by the separate `nifty_index_ingestion` repository.
 
 The codebase is a collection of executable Python modules rather than an
 installed application package.
@@ -16,8 +17,8 @@ installed application package.
   cleaning, master-data maintenance, reports, and analysis.
 - DuckDB provides R2 access, Parquet reads/writes, joins, and validation SQL.
 - Pandas handles API responses and local transformations.
-- GitHub Actions schedules daily NAV, weekly metadata extraction, and daily
-  benchmark loading.
+- GitHub Actions schedules daily NAV, weekly metadata extraction, and quarterly
+  AUM extraction.
 
 R2 paths are built by `config.settings.R2`:
 
@@ -95,7 +96,6 @@ Optional jobs:
 
 ```bash
 python -m scripts.fetch_aum_data
-python -m scripts.load_benchmark_data
 python -m scripts.ingest_zerodha_mf
 ```
 
@@ -111,10 +111,14 @@ python -m scripts.test_github_actions_setup
 | --- | --- | --- |
 | Daily NAV | `0 4 * * *` | `fetch_daily_nav` |
 | Scheme metadata | `0 1 * * 6` | `extract_scheme_metadata` |
-| NIFTY benchmark | `30 18 * * *` | `load_benchmark_data` |
+| Scheme-wise AUM | `0 2 10 1,4,7,10 *` | `fetch_aum_data` |
 
-Schedules are UTC. Their IST times are 09:30 daily, 06:30 Saturday, and 00:00
-the next day, respectively.
+Schedules are UTC. Their IST times are 09:30 daily, 06:30 Saturday, and 07:30
+on the 10th of each quarter month, respectively.
+
+NIFTY benchmark ingestion is scheduled in the separate
+`nifty_index_ingestion` repository and dispatches successful raw uploads to the
+datalake.
 
 ## Important Pipeline Boundaries
 
