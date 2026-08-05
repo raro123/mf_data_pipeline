@@ -36,9 +36,9 @@ r2://financial-data-store/mutual_funds/<area>/<file>.parquet
 
 | Workflow | Schedule | Commands |
 | --- | --- | --- |
-| Daily NAV processing | Daily at 04:00 UTC / 09:30 IST | `fetch_daily_nav` |
-| Scheme metadata extraction | Saturday at 01:00 UTC / 06:30 IST | `extract_scheme_metadata` |
-| Scheme-wise AUM extraction | 10th of Jan/Apr/Jul/Oct at 02:00 UTC / 07:30 IST | `fetch_aum_data` |
+| Daily NAV processing | Daily at 00:30 UTC / 06:00 IST | `fetch_daily_nav` |
+| Scheme metadata extraction | Saturday at 00:30 UTC / 06:00 IST | `extract_scheme_metadata` |
+| Scheme-wise AUM extraction | 10th of Jan/Apr/Jul/Oct at 00:30 UTC / 06:00 IST | `fetch_aum_data` |
 
 Every workflow also supports manual execution from the GitHub Actions tab.
 
