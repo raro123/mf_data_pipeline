@@ -2,7 +2,7 @@
 
 ## `daily-nav-processing.yml`
 
-- Schedule: daily at 04:00 UTC / 09:30 IST
+- Schedule: daily at 00:30 UTC / 06:00 IST
 - Runtime: Python 3.9 and pip
 - Commands:
 
@@ -16,7 +16,7 @@ the former repository-side clean step is no longer scheduled.
 
 ## `extract-scheme-metadata.yml`
 
-- Schedule: Saturday at 01:00 UTC / 06:30 IST
+- Schedule: Saturday at 00:30 UTC / 06:00 IST
 - Runtime: Python 3.12 and uv
 - Command:
 
@@ -30,7 +30,7 @@ metadata.
 
 ## `fetch-aum-data.yml`
 
-- Schedule: the 10th of Jan/Apr/Jul/Oct at 02:00 UTC / 07:30 IST
+- Schedule: the 10th of Jan/Apr/Jul/Oct at 00:30 UTC / 06:00 IST
 - Runtime: Python 3.12 and uv
 - Command:
 

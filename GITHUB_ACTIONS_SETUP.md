@@ -7,15 +7,15 @@ run on schedule or through `workflow_dispatch` from the GitHub Actions tab.
 
 | Workflow file | Schedule | Purpose |
 | --- | --- | --- |
-| `daily-nav-processing.yml` | `0 4 * * *` | Fetch missing daily NAV data and rebuild clean growth-plan NAV in R2 |
-| `extract-scheme-metadata.yml` | `0 1 * * 6` | Extract a dated raw AMFI scheme metadata snapshot to R2 |
-| `fetch-aum-data.yml` | `0 2 10 1,4,7,10 *` | Fetch and publish a dated scheme-wise AUM snapshot to R2 |
+| `daily-nav-processing.yml` | `30 0 * * *` | Fetch missing daily NAV data and rebuild clean growth-plan NAV in R2 |
+| `extract-scheme-metadata.yml` | `30 0 * * 6` | Extract a dated raw AMFI scheme metadata snapshot to R2 |
+| `fetch-aum-data.yml` | `30 0 10 1,4,7,10 *` | Fetch and publish a dated scheme-wise AUM snapshot to R2 |
 
 Schedule conversions:
 
-- 04:00 UTC is 09:30 IST on the same day.
-- Saturday 01:00 UTC is Saturday 06:30 IST.
-- 02:00 UTC on the 10th of a quarter month is 07:30 IST.
+- 00:30 UTC is 06:00 IST on the same day.
+- Saturday 00:30 UTC is Saturday 06:00 IST.
+- 00:30 UTC on the 10th of a quarter month is 06:00 IST.
 
 India does not observe daylight saving time.
 

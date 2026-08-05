@@ -2,7 +2,7 @@ name: Quarterly Scheme-wise AUM Extraction
 
 on:
   schedule:
-    - cron: '0 2 10 1,4,7,10 *'
+    - cron: '30 0 10 1,4,7,10 *'
   workflow_dispatch:
 
 jobs:
