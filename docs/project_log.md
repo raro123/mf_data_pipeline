@@ -12,12 +12,34 @@ snapshots are complete, immutable, and traceable through the datalake.
 |---|----------|--------|---------|--------|
 | 1 | Profile the raw AMC member JSON to select stable fields and define the clean-table shape | 2026-08-24 | S1 | 🟡 Open |
 | 2 | Decide whether the upstream member extractor needs an additional count or schema-drift guardrail beyond complete-detail validation | 2026-08-24 | S1 | 🟡 Open |
+| 3 | Define the canonical TER modelling and promotion flow after raw ingestion | 2026-08-24 | S2 | 🟡 Open |
 
 ---
 
 ## Session Log
 
 <!-- Sessions in reverse chronological order (newest first) -->
+
+---
+
+### 📅 Date: 2026-08-24 | Session: S2 — Dispatch TER snapshots to the datalake
+
+**What was done:**
+The scheduled TER workflow now dispatches every successful monthly AMFI expense-ratio snapshot to the datalake for raw ingestion. Same-day no-write reruns remain safe because ingestion is idempotent by source filename. The workflow documentation, setup guide, execution order, script inventory, README, and work queue were updated to reflect the new boundary.
+
+**Why:**
+Raw TER snapshots are now available to downstream processing automatically, while immutable source files preserve reproducibility. Keeping canonical TER modelling deferred avoids coupling extraction to an unfinished analytical design.
+
+**How:**
+After a successful TER extraction, GitHub Actions sends a repository dispatch event with source repository, workflow, run, attempt, and commit metadata. The datalake owns raw ingestion, and the repository documentation records that canonical modelling remains a follow-up task.
+
+**Decisions made:**
+- Automate raw TER snapshot ingestion through the datalake dispatch.
+- Keep TER source workbooks unretained and snapshots immutable.
+- Defer canonical TER modelling to a later phase.
+
+**Pending decisions:**
+- Define the canonical TER modelling and promotion flow → Decision #3.
 
 ---
 
