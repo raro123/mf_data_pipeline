@@ -55,6 +55,18 @@ The job writes an immutable raw member snapshot under the R2
 `mutual_funds/amc_members/` prefix and dispatches successful uploads to the
 datalake. It does not create a clean AMC member table.
 
+## `fetch-ter-data.yml`
+
+- Schedule: the 5th and 20th of each month at 07:30 UTC / 13:00 IST
+- Runtime: Python 3.12 and uv
+- Scheduled command: `uv run python -m scripts.fetch_ter_data --scheduled`
+- Manual command: `uv run python -m scripts.fetch_ter_data`
+
+The workflow writes validated, immutable Zstandard Parquet snapshots under
+`mutual_funds/ter/`. The 5th resolves to the previous month and the 20th to
+the current month. TER runs are serialized to avoid concurrent writes. It does
+not retain the XLSX or dispatch to the datalake.
+
 ## Shared Configuration
 
 All workflows require these GitHub Actions secrets:

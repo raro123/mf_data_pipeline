@@ -1,6 +1,6 @@
 # GitHub Actions Setup
 
-The repository has four active workflows under `.github/workflows/`. All can
+The repository has five active workflows under `.github/workflows/`. All can
 run on schedule or through `workflow_dispatch` from the GitHub Actions tab.
 
 ## Active Workflows
@@ -11,6 +11,7 @@ run on schedule or through `workflow_dispatch` from the GitHub Actions tab.
 | `extract-scheme-metadata.yml` | `30 0 * * 6` | Extract a dated raw AMFI scheme metadata snapshot to R2 |
 | `extract-amc-members.yml` | `30 1 * * 6` | Extract an immutable raw AMFI AMC-member snapshot and dispatch datalake ingestion |
 | `fetch-aum-data.yml` | `30 0 10 1,4,7,10 *` | Fetch and publish a dated scheme-wise AUM snapshot to R2 |
+| `fetch-ter-data.yml` | `30 7 5,20 * *` | Validate and publish monthly AMFI TER snapshots to R2 |
 
 Schedule conversions:
 
@@ -18,6 +19,7 @@ Schedule conversions:
 - Saturday 00:30 UTC is Saturday 06:00 IST.
 - Saturday 01:30 UTC is Saturday 07:00 IST.
 - 00:30 UTC on the 10th of a quarter month is 06:00 IST.
+- 07:30 UTC on the 5th and 20th is 13:00 IST on the same day.
 
 India does not observe daylight saving time.
 
@@ -45,8 +47,9 @@ The workflows use defaults when these repository variables are absent:
 | `AMFI_NAV_TIMEOUT` | `30` | Daily NAV |
 | `AMFI_SCHEME_TIMEOUT` | `30` | Daily NAV environment and metadata extraction |
 | `AMFI_MEMBERS_TIMEOUT` | `30` | AMC member extraction |
-| `MAX_RETRIES` | `3` | Daily NAV |
-| `RETRY_DELAY` | `5` | Daily NAV |
+| `AMFI_TER_TIMEOUT` | `60` | TER extraction |
+| `MAX_RETRIES` | `3` | Daily NAV and TER extraction |
+| `RETRY_DELAY` | `5` | Daily NAV and TER extraction |
 | `HISTORICAL_FETCH_DAYS` | `90` | Exposed to daily NAV environment, mainly used by historical fetches |
 | `CHUNK_SIZE` | `10000` | Exposed to daily NAV environment |
 | `LOG_LEVEL` | `INFO` | All workflows |
@@ -70,8 +73,10 @@ mutual_funds/
 |   `-- scheme_metadata_<YYYYMMDD>.parquet
 |-- amc_members/
 |   `-- amc_members_<YYYYMMDDTHHMMSSZ>.parquet
-`-- aum/
-    `-- aum_schemewise_<YYYYMMDD>.parquet
+|-- aum/
+|   `-- aum_schemewise_<YYYYMMDD>.parquet
+`-- ter/
+    `-- ter_<YYYYMM>_snapshot_<YYYYMMDD>.parquet
 ```
 
 The dated raw NAV and metadata objects are the operational inputs. Canonical
@@ -134,6 +139,23 @@ uv run python -m scripts.fetch_aum_data
 This fetches the requested scheme-wise AUM period, writes a dated Parquet
 snapshot to R2, and dispatches the successful upload to the datalake.
 
+### Monthly TER Extraction
+
+Runtime: Python 3.12 with dependencies installed by uv.
+
+```bash
+uv run python -m scripts.fetch_ter_data --scheduled
+```
+
+Scheduled runs on days 1–10 fetch the previous calendar month; other scheduled
+runs fetch the current month. Manual dispatch without arguments fetches the
+current month. Reviewed backfills use `--start-month YYYY-MM --end-month
+YYYY-MM` and start at April 2020. The extractor rejects non-XLSX responses,
+unknown or partial source headers, invalid dates, out-of-month dates, and
+nonnumeric TER fields before writing. It writes Zstandard Parquet only and
+does not dispatch to the datalake in this phase. Workflow runs are serialized
+to prevent overlapping writes to the same daily snapshot.
+
 ## Manual Verification
 
 After configuring secrets, manually run each workflow before relying on its
@@ -166,6 +188,8 @@ it is not a unit-test suite.
 
 - Metadata extraction, cleaning, publication, and master-data maintenance are
   not yet one automated workflow.
+- TER historical backfills, modelling, and datalake ingestion are intentionally
+  manual/deferred during the first extraction phase.
 - NAV validation is manual and does not gate the daily workflow.
 - Workflows print success/failure messages but do not send external alerts.
 - NAV uses pip/Python 3.9 while metadata and AUM use uv/Python 3.12.

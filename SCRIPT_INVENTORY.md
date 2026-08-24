@@ -18,6 +18,7 @@ All executable modules are under `scripts/` and can be run with
 | Script | Status | Reads | Writes |
 | --- | --- | --- | --- |
 | `extract_scheme_metadata.py` | Active, scheduled | AMFI scheme download | Dated raw metadata Parquet in R2 |
+| `fetch_ter_data.py` | Active, scheduled/manual | AMFI monthly all-fund TER XLSX export | Immutable validated Zstandard TER Parquet in R2 |
 | `clean_scheme_metadata.py` | Active, local | Latest local timestamped metadata CSV | Clean local CSV and Parquet |
 | `build_scheme_masterdata.py` | Active, local | Clean local metadata and prior master data | Updated local master-data CSV and Parquet |
 | `demo_masterdata.py` | Demonstration only | Synthetic in-memory data | Console output/demo files as coded |
@@ -31,6 +32,7 @@ local metadata flow remains separate from the datalake metadata flow.
 | --- | --- | --- |
 | `extract_amc_members.py` | Active, scheduled | Fetch a complete weekly AMFI member snapshot and upload immutable raw Parquet to R2 |
 | `fetch_aum_data.py` | Active, on demand | Fetch AMFI scheme-wise average AUM for selected financial years and periods |
+| `fetch_ter_data.py` | Active, scheduled/manual | Fetch, validate, and publish monthly all-fund TER snapshots; no datalake dispatch |
 | `ingest_zerodha_mf.py` | Optional | Fetch the Zerodha mutual-fund instrument dump and upload a dated CSV to R2 |
 
 ## Diagnostics
@@ -39,9 +41,8 @@ local metadata flow remains separate from the datalake metadata flow.
 | --- | --- | --- |
 | `test_github_actions_setup.py` | Manual diagnostic | Check environment variables, R2 connectivity, dependencies, and script availability |
 
-Focused unit tests for daily NAV checkpoint, gap behavior, and missing-only
-repairs live under `tests/test_fetch_daily_nav.py` and
-`tests/test_repair_missing_nav.py`. Run them with:
+Focused unit tests for daily NAV checkpoint, gap behavior, missing-only
+repairs, and TER extraction live under `tests/`. Run them with:
 
 ```bash
 python -m unittest discover -s tests -v

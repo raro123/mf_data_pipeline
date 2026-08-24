@@ -199,6 +199,36 @@ This is a separate optional workflow. It requires Kite Connect credentials and
 uploads a dated CSV instrument dump to R2. It is not scheduled by this
 repository.
 
+## 6. Monthly TER Extraction
+
+Run one current-month snapshot manually:
+
+```bash
+python -m scripts.fetch_ter_data
+```
+
+For a scheduled month selection or a reviewed historical backfill:
+
+```bash
+python -m scripts.fetch_ter_data --scheduled
+python -m scripts.fetch_ter_data \
+  --start-month 2020-04 \
+  --end-month YYYY-MM
+```
+
+The extractor requests AMFI's all-fund, all-category/type XLSX export. It
+recognizes the pre-April-2026 and April-2026-onward header sets, validates the
+rows, and writes only validated Zstandard Parquet:
+
+```text
+r2://financial-data-store/mutual_funds/ter/ter_<YYYYMM>_snapshot_<YYYYMMDD>.parquet
+```
+
+The source workbook is not retained. A same-day rerun skips its exact object;
+backfills skip months with any canonical TER snapshot, so interrupted ranges
+can resume. A failed month stops the range before later months are fetched or
+written. This phase does not dispatch datalake ingestion.
+
 ## GitHub Actions Order
 
 The active schedules are independent:
@@ -207,13 +237,16 @@ The active schedules are independent:
 2. Weekly AMC member extraction: Saturday at 01:30 UTC / 07:00 IST.
 3. Daily NAV processing: every day at 06:30 UTC / 12:00 IST.
 4. Quarterly AUM extraction: the 10th of Jan/Apr/Jul/Oct at 00:30 UTC / 06:00 IST.
+5. TER extraction: the 5th and 20th at 07:30 UTC / 13:00 IST.
 
 NIFTY benchmark ingestion is owned by the separate `nifty_index_ingestion`
 repository. It publishes to the datalake, which feeds the active tearsheet
 benchmark table.
 
 There is no workflow that orchestrates a full historical rebuild, local
-metadata cleaning, master-data building, AUM fetching, or NAV validation.
+metadata cleaning, master-data building, TER historical backfills, AUM
+fetching, or NAV validation. TER snapshots are not dispatched to the datalake
+in this phase.
 
 ## Legacy Local Artifacts
 

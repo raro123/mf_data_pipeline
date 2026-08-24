@@ -1,0 +1,60 @@
+name: Monthly AMFI TER Extraction
+
+on:
+  schedule:
+    # The 5th collects the previous month; the 20th refreshes the current month.
+    - cron: '30 7 5,20 * *'
+  workflow_dispatch:
+
+concurrency:
+  group: amfi-ter-extraction
+  cancel-in-progress: false
+
+jobs:
+  fetch-ter:
+    runs-on: ubuntu-latest
+
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      AMFI_TER_TIMEOUT: ${{ vars.AMFI_TER_TIMEOUT || '60' }}
+      MAX_RETRIES: ${{ vars.MAX_RETRIES || '3' }}
+      RETRY_DELAY: ${{ vars.RETRY_DELAY || '5' }}
+      ENVIRONMENT: production
+      LOG_LEVEL: ${{ vars.LOG_LEVEL || 'INFO' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: 'requirements.txt'
+
+      - name: Install dependencies
+        run: |
+          uv venv
+          uv pip install -r requirements.txt
+
+      - name: Fetch and publish TER snapshot
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            uv run python -m scripts.fetch_ter_data --scheduled
+          else
+            uv run python -m scripts.fetch_ter_data
+          fi
+
+      - name: Upload TER logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ter-extraction-logs-${{ github.run_number }}
+          path: logs/
+          retention-days: 7

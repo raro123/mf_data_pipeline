@@ -5,6 +5,7 @@
  - Added MF members data ingestion (clean tables to be taken up in data lake)
 
 ### Pickup Next
+ - Picked up expense ratios
  - Portfolio Data
 
 ### Ideas Ahead

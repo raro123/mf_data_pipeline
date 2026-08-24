@@ -6,6 +6,15 @@ Shared utilities for NAV data transformation and storage used across multiple sc
 
 import pandas as pd
 
+
+VALID_PARQUET_COMPRESSIONS = frozenset({
+    "uncompressed",
+    "snappy",
+    "gzip",
+    "zstd",
+    "lz4_raw",
+})
+
 # Column mapping from raw AMFI format to standardized names
 NAV_COLUMN_MAPPING = {
     'Scheme Code': 'scheme_code',
@@ -40,7 +49,13 @@ def clean_nav_dataframe(df: pd.DataFrame, columns: list = None) -> pd.DataFrame:
             ))
 
 
-def save_to_parquet(connection, table_name: str, df, path: str):
+def save_to_parquet(
+    connection,
+    table_name: str,
+    df,
+    path: str,
+    compression: str = None,
+):
     """
     Save DataFrame to Parquet via DuckDB.
 
@@ -49,6 +64,23 @@ def save_to_parquet(connection, table_name: str, df, path: str):
         table_name: Name to register the table as
         df: DataFrame or DuckDB relation to save
         path: Output path for Parquet file
+        compression: Optional DuckDB Parquet compression codec. When omitted,
+            retain DuckDB's existing default behavior.
+
+    Raises:
+        ValueError: If ``compression`` is not a supported Parquet codec.
     """
+    if compression is not None:
+        compression = compression.lower()
+        if compression not in VALID_PARQUET_COMPRESSIONS:
+            supported = ", ".join(sorted(VALID_PARQUET_COMPRESSIONS))
+            raise ValueError(
+                f"Unsupported Parquet compression {compression!r}; "
+                f"expected one of: {supported}"
+            )
+
     connection.register(table_name, df)
-    connection.execute(f"COPY {table_name} TO '{path}' (FORMAT PARQUET)")
+    options = "FORMAT PARQUET"
+    if compression is not None:
+        options += f", COMPRESSION '{compression}'"
+    connection.execute(f"COPY {table_name} TO '{path}' ({options})")

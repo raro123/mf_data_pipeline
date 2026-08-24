@@ -1,6 +1,7 @@
 pyspark
 prefect
 pandas
+openpyxl
 pyarrow
 requests
 boto3

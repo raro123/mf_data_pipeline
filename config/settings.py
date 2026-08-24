@@ -137,6 +137,10 @@ class API:
     AMFI_AUM_URL = "https://www.amfiindia.com/api/average-aum-schemewise"
     AMFI_AUM_TIMEOUT = int(os.getenv("AMFI_AUM_TIMEOUT", "60"))
 
+    # AMFI Total Expense Ratio monthly Excel export
+    AMFI_TER_URL = "https://www.amfiindia.com/api/populate-te-rdata-revised"
+    AMFI_TER_TIMEOUT = int(os.getenv("AMFI_TER_TIMEOUT", "60"))
+
     # AMFI AMC members APIs
     AMFI_MEMBERS_URL = "https://www.amfiindia.com/api/members"
     AMFI_MEMBER_DETAIL_URL = "https://www.amfiindia.com/api/member"
@@ -189,6 +193,7 @@ class Logging:
     CLEAN_METADATA_LOG = "clean_scheme_metadata_{date}.log"
     ANALYTICAL_NAV_LOG = "analytical_nav_{date}.log"
     FETCH_AUM_LOG = "fetch_aum_{date}.log"
+    FETCH_TER_LOG = "fetch_ter_{date}.log"
     
     # Log retention
     LOG_RETENTION_DAYS = int(os.getenv("LOG_RETENTION_DAYS", "30"))
