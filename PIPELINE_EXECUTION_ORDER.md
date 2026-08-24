@@ -227,7 +227,9 @@ r2://financial-data-store/mutual_funds/ter/ter_<YYYYMM>_snapshot_<YYYYMMDD>.parq
 The source workbook is not retained. A same-day rerun skips its exact object;
 backfills skip months with any canonical TER snapshot, so interrupted ranges
 can resume. A failed month stops the range before later months are fetched or
-written. This phase does not dispatch datalake ingestion.
+written. Every successful workflow run dispatches raw TER ingestion to the
+datalake; a successful no-write rerun is safe because ingestion is idempotent
+by source filename.
 
 ## GitHub Actions Order
 
@@ -245,8 +247,8 @@ benchmark table.
 
 There is no workflow that orchestrates a full historical rebuild, local
 metadata cleaning, master-data building, TER historical backfills, AUM
-fetching, or NAV validation. TER snapshots are not dispatched to the datalake
-in this phase.
+fetching, or NAV validation. TER extraction dispatches raw snapshots to the
+datalake, but canonical TER modelling is not yet implemented.
 
 ## Legacy Local Artifacts
 

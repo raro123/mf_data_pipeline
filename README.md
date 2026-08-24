@@ -166,8 +166,9 @@ python -m scripts.fetch_ter_data --start-month 2020-04 --end-month YYYY-MM
 
 Scheduled mode fetches the previous month on days 1–10 and the current month
 otherwise. TER snapshots are written as immutable Zstandard Parquet objects
-under `mutual_funds/ter/`; the XLSX response is not retained. Datalake
-ingestion and TER modelling are deferred to a later phase.
+under `mutual_funds/ter/`; the XLSX response is not retained. Successful runs
+dispatch filename-idempotent raw ingestion to the datalake. Canonical TER
+modelling remains deferred.
 
 See `PIPELINE_EXECUTION_ORDER.md` for prerequisites and detailed ordering.
 

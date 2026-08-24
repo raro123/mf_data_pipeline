@@ -11,7 +11,7 @@ run on schedule or through `workflow_dispatch` from the GitHub Actions tab.
 | `extract-scheme-metadata.yml` | `30 0 * * 6` | Extract a dated raw AMFI scheme metadata snapshot to R2 |
 | `extract-amc-members.yml` | `30 1 * * 6` | Extract an immutable raw AMFI AMC-member snapshot and dispatch datalake ingestion |
 | `fetch-aum-data.yml` | `30 0 10 1,4,7,10 *` | Fetch and publish a dated scheme-wise AUM snapshot to R2 |
-| `fetch-ter-data.yml` | `30 7 5,20 * *` | Validate and publish monthly AMFI TER snapshots to R2 |
+| `fetch-ter-data.yml` | `30 7 5,20 * *` | Publish monthly AMFI TER snapshots and dispatch raw datalake ingestion |
 
 Schedule conversions:
 
@@ -153,8 +153,10 @@ current month. Reviewed backfills use `--start-month YYYY-MM --end-month
 YYYY-MM` and start at April 2020. The extractor rejects non-XLSX responses,
 unknown or partial source headers, invalid dates, out-of-month dates, and
 nonnumeric TER fields before writing. It writes Zstandard Parquet only and
-does not dispatch to the datalake in this phase. Workflow runs are serialized
-to prevent overlapping writes to the same daily snapshot.
+dispatches successful runs to the datalake's raw TER receiver. This includes
+successful no-write reruns because the receiver is filename-idempotent.
+Workflow runs are serialized to prevent overlapping writes to the same daily
+snapshot.
 
 ## Manual Verification
 
@@ -188,8 +190,8 @@ it is not a unit-test suite.
 
 - Metadata extraction, cleaning, publication, and master-data maintenance are
   not yet one automated workflow.
-- TER historical backfills, modelling, and datalake ingestion are intentionally
-  manual/deferred during the first extraction phase.
+- TER historical backfills and canonical modelling remain manual/deferred;
+  raw snapshot ingestion is automated through the datalake dispatch.
 - NAV validation is manual and does not gate the daily workflow.
 - Workflows print success/failure messages but do not send external alerts.
 - NAV uses pip/Python 3.9 while metadata and AUM use uv/Python 3.12.

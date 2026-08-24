@@ -65,7 +65,8 @@ datalake. It does not create a clean AMC member table.
 The workflow writes validated, immutable Zstandard Parquet snapshots under
 `mutual_funds/ter/`. The 5th resolves to the previous month and the 20th to
 the current month. TER runs are serialized to avoid concurrent writes. It does
-not retain the XLSX or dispatch to the datalake.
+not retain the XLSX. Every successful run dispatches raw ingestion to the
+datalake, including safe filename-idempotent no-write reruns.
 
 ## Shared Configuration
 
@@ -88,4 +89,4 @@ seven-day artifact where configured, but scripts that print directly to stdout
 may not create a useful log file.
 
 Current automation does not run historical backfills, local metadata cleaning,
-scheme master-data rebuilding, AUM ingestion, or NAV validation.
+scheme master-data rebuilding, or NAV validation.

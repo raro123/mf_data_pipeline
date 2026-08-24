@@ -32,7 +32,7 @@ local metadata flow remains separate from the datalake metadata flow.
 | --- | --- | --- |
 | `extract_amc_members.py` | Active, scheduled | Fetch a complete weekly AMFI member snapshot and upload immutable raw Parquet to R2 |
 | `fetch_aum_data.py` | Active, on demand | Fetch AMFI scheme-wise average AUM for selected financial years and periods |
-| `fetch_ter_data.py` | Active, scheduled/manual | Fetch, validate, and publish monthly all-fund TER snapshots; no datalake dispatch |
+| `fetch_ter_data.py` | Active, scheduled/manual | Fetch, validate, publish, and dispatch raw monthly all-fund TER snapshots |
 | `ingest_zerodha_mf.py` | Optional | Fetch the Zerodha mutual-fund instrument dump and upload a dated CSV to R2 |
 
 ## Diagnostics
