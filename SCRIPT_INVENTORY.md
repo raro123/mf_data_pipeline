@@ -10,6 +10,7 @@ All executable modules are under `scripts/` and can be run with
 | `fetch_historical_nav.py` | Active, manual | AMFI historical NAV endpoint | Chunked CSV files under `data/raw/nav_historical/` |
 | `transform_historical_nav.py` | Active, manual | Local historical CSV files | R2 `mutual_funds/raw/nav_historical.parquet` |
 | `fetch_daily_nav.py` | Active, scheduled | AMFI and dated raw NAV object names in R2 | Dated raw NAV Parquet in R2 |
+| `repair_missing_nav.py` | Active, manual | Current AMFI history and existing raw NAV objects in R2 | Immutable missing-only NAV repair Parquet in R2 with `--write` |
 | `daily_nav_clean.py` | Deprecated rollback utility, not scheduled | Raw NAV and clean scheme metadata in R2 | Legacy R2 clean output, if explicitly invoked |
 
 ## Scheme Metadata Scripts
@@ -37,8 +38,9 @@ local metadata flow remains separate from the datalake metadata flow.
 | --- | --- | --- |
 | `test_github_actions_setup.py` | Manual diagnostic | Check environment variables, R2 connectivity, dependencies, and script availability |
 
-Focused unit tests for daily NAV checkpoint and gap behavior live under
-`tests/test_fetch_daily_nav.py` and run with:
+Focused unit tests for daily NAV checkpoint, gap behavior, and missing-only
+repairs live under `tests/test_fetch_daily_nav.py` and
+`tests/test_repair_missing_nav.py`. Run them with:
 
 ```bash
 python -m unittest discover -s tests -v

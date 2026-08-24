@@ -73,6 +73,49 @@ Notes:
 - A failed date stops the fetch loop and returns a nonzero process exit code,
   preventing a later raw object from advancing the checkpoint past the gap.
 
+### One-time repair for NAVs reported late
+
+Use this only when canonical daily snapshots exist for the requested weekdays,
+but AMFI now contains scheme/date observations that those snapshots omitted.
+Always review the dry run before writing:
+
+```bash
+python -m scripts.repair_missing_nav \
+  --start YYYYMMDD \
+  --end YYYYMMDD
+
+python -m scripts.repair_missing_nav \
+  --start YYYYMMDD \
+  --end YYYYMMDD \
+  --write
+```
+
+Flow:
+
+```text
+Current AMFI history + existing R2 raw NAV keys
+  -> missing weekday (scheme_code, date) keys only
+  -> R2 raw/nav_repair_missing_<start>_<end>_<UTC-timestamp>.parquet
+Manual datalake NAV workflow
+  -> mf.raw_nav_daily
+  -> rebuilt mf.nav_daily and mf.nav_daily_open_growth
+```
+
+The command rejects missing canonical daily snapshots, invalid or out-of-range
+dates, and duplicate scheme/date keys. Non-numeric or non-positive NAV rows are
+excluded, matching the canonical datalake filter. It reports but does not write
+NAV restatements. Repair objects are immutable and their filenames are ignored
+by daily watermark discovery.
+
+After a successful write, ingest the new object with:
+
+```bash
+gh workflow run mf-daily.yml --repo raro123/datalake
+```
+
+Do not schedule this utility or use it for the current publication, daily gap
+recovery, full-history initialization, or NAV restatements.
+
 ## 3. Scheme Metadata
 
 ### R2 extraction

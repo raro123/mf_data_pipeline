@@ -90,6 +90,34 @@ explicitly with:
 python -m scripts.fetch_daily_nav --bootstrap-date YYYYMMDD
 ```
 
+### Repairing NAVs reported late
+
+Use the manual repair command when a dated daily raw snapshot already exists,
+but AMFI subsequently publishes scheme/date observations that were absent from
+that snapshot. Preview the repair before allowing an R2 write:
+
+```bash
+python -m scripts.repair_missing_nav --start YYYYMMDD --end YYYYMMDD
+python -m scripts.repair_missing_nav --start YYYYMMDD --end YYYYMMDD --write
+```
+
+The command compares the current AMFI history with all existing raw NAV
+objects. It writes only missing weekday `(scheme_code, date)` keys to a new,
+immutable `nav_repair_missing_*.parquet` object. Existing keys with a changed
+NAV are reported and skipped because the current clean table does not support
+restatement precedence.
+
+Do not use this command for today's pending AMFI publication, a missing daily
+checkpoint, a full historical backfill, or a NAV restatement. After a repair
+object is uploaded, manually run the datalake NAV ingestion:
+
+```bash
+gh workflow run mf-daily.yml --repo raro123/datalake
+```
+
+Repair filenames do not match the canonical `nav_daily_YYYYMMDD.parquet`
+pattern, so they cannot advance the daily extraction watermark.
+
 The datalake independently builds canonical `mf.nav_daily` and
 `mf.nav_daily_open_growth` datasets from raw NAV files. The former
 repository-side clean step is no longer scheduled or required.

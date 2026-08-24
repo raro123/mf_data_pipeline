@@ -73,6 +73,14 @@ Daily R2 NAV flow:
 python -m scripts.fetch_daily_nav
 ```
 
+One-time repair for scheme/date NAV rows published after an existing daily
+snapshot:
+
+```bash
+python -m scripts.repair_missing_nav --start YYYYMMDD --end YYYYMMDD
+python -m scripts.repair_missing_nav --start YYYYMMDD --end YYYYMMDD --write
+```
+
 For an empty raw NAV prefix, initialize extraction explicitly:
 
 ```bash
@@ -145,6 +153,11 @@ processing.
 weekdays through yesterday. It requires `--bootstrap-date` only when no raw
 daily objects exist. A failed date stops the loop so a later object cannot
 advance the checkpoint past a gap.
+
+`repair_missing_nav.py` is a manual, missing-only recovery path for late AMFI
+reports inside existing daily snapshots. It writes immutable
+`nav_repair_missing_*.parquet` objects that the datalake ingests but daily
+watermark discovery ignores. It skips and reports NAV restatements.
 
 ### Historical transformation is Pandas-based
 
