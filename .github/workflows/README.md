@@ -41,6 +41,20 @@ uv run python -m scripts.fetch_aum_data
 The job writes a dated scheme-wise AUM Parquet snapshot under the R2
 `mutual_funds/aum/` prefix and dispatches successful uploads to the datalake.
 
+## `extract-amc-members.yml`
+
+- Schedule: Saturday at 01:30 UTC / 07:00 IST
+- Runtime: Python 3.12 and uv
+- Command:
+
+```bash
+uv run python -m scripts.extract_amc_members
+```
+
+The job writes an immutable raw member snapshot under the R2
+`mutual_funds/amc_members/` prefix and dispatches successful uploads to the
+datalake. It does not create a clean AMC member table.
+
 ## Shared Configuration
 
 All workflows require these GitHub Actions secrets:
@@ -48,6 +62,7 @@ All workflows require these GitHub Actions secrets:
 - `R2_ACCESS_KEY_ID`
 - `R2_SECRET_ACCESS_KEY`
 - `R2_ACCOUNT_ID`
+- `DATALAKE_DISPATCH_TOKEN` for workflows that notify the datalake
 
 Optional API, retry, and logging settings are supplied through repository
 variables. See `GITHUB_ACTIONS_SETUP.md` in the repository root for the full

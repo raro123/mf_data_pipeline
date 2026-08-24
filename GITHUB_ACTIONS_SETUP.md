@@ -1,6 +1,6 @@
 # GitHub Actions Setup
 
-The repository has three active workflows under `.github/workflows/`. All can
+The repository has four active workflows under `.github/workflows/`. All can
 run on schedule or through `workflow_dispatch` from the GitHub Actions tab.
 
 ## Active Workflows
@@ -9,12 +9,14 @@ run on schedule or through `workflow_dispatch` from the GitHub Actions tab.
 | --- | --- | --- |
 | `daily-nav-processing.yml` | `30 6 * * *` | Fetch missing daily NAV data and dispatch raw ingestion to the datalake |
 | `extract-scheme-metadata.yml` | `30 0 * * 6` | Extract a dated raw AMFI scheme metadata snapshot to R2 |
+| `extract-amc-members.yml` | `30 1 * * 6` | Extract an immutable raw AMFI AMC-member snapshot and dispatch datalake ingestion |
 | `fetch-aum-data.yml` | `30 0 10 1,4,7,10 *` | Fetch and publish a dated scheme-wise AUM snapshot to R2 |
 
 Schedule conversions:
 
 - 06:30 UTC is 12:00 IST on the same day for daily NAV processing.
 - Saturday 00:30 UTC is Saturday 06:00 IST.
+- Saturday 01:30 UTC is Saturday 07:00 IST.
 - 00:30 UTC on the 10th of a quarter month is 06:00 IST.
 
 India does not observe daylight saving time.
@@ -28,6 +30,7 @@ Configure these under **Settings > Secrets and variables > Actions**:
 | `R2_ACCESS_KEY_ID` | Cloudflare R2 access key |
 | `R2_SECRET_ACCESS_KEY` | Cloudflare R2 secret key |
 | `R2_ACCOUNT_ID` | Cloudflare account ID used by DuckDB's R2 secret |
+| `DATALAKE_DISPATCH_TOKEN` | GitHub token allowed to dispatch the datalake repository |
 
 The token must be able to read and write the `financial-data-store` bucket.
 Never commit these values. Local credentials belong in `.env`, which is
@@ -41,6 +44,7 @@ The workflows use defaults when these repository variables are absent:
 | --- | --- | --- |
 | `AMFI_NAV_TIMEOUT` | `30` | Daily NAV |
 | `AMFI_SCHEME_TIMEOUT` | `30` | Daily NAV environment and metadata extraction |
+| `AMFI_MEMBERS_TIMEOUT` | `30` | AMC member extraction |
 | `MAX_RETRIES` | `3` | Daily NAV |
 | `RETRY_DELAY` | `5` | Daily NAV |
 | `HISTORICAL_FETCH_DAYS` | `90` | Exposed to daily NAV environment, mainly used by historical fetches |
@@ -64,6 +68,8 @@ mutual_funds/
 |   `-- nav_daily_<YYYYMMDD>.parquet
 |-- metadata/
 |   `-- scheme_metadata_<YYYYMMDD>.parquet
+|-- amc_members/
+|   `-- amc_members_<YYYYMMDDTHHMMSSZ>.parquet
 `-- aum/
     `-- aum_schemewise_<YYYYMMDD>.parquet
 ```
@@ -104,6 +110,18 @@ uv run python -m scripts.extract_scheme_metadata
 This job only extracts a dated raw metadata Parquet file to R2. It does not run
 `clean_scheme_metadata.py`, publish `clean/scheme_metadata.parquet`, or rebuild
 local scheme master data.
+
+### Weekly AMC Member Extraction
+
+Runtime: Python 3.12 with dependencies installed by uv.
+
+```bash
+uv run python -m scripts.extract_amc_members
+```
+
+This fetches a complete AMFI member snapshot, writes one row per listed member
+to a uniquely timestamped R2 Parquet object, and dispatches raw ingestion to
+the datalake. It does not create a clean member table.
 
 ### Quarterly Scheme-wise AUM Extraction
 

@@ -137,6 +137,12 @@ class API:
     AMFI_AUM_URL = "https://www.amfiindia.com/api/average-aum-schemewise"
     AMFI_AUM_TIMEOUT = int(os.getenv("AMFI_AUM_TIMEOUT", "60"))
 
+    # AMFI AMC members APIs
+    AMFI_MEMBERS_URL = "https://www.amfiindia.com/api/members"
+    AMFI_MEMBER_DETAIL_URL = "https://www.amfiindia.com/api/member"
+    AMFI_SOCIAL_MEDIA_URL = "https://www.amfiindia.com/api/social-media-links"
+    AMFI_MEMBERS_TIMEOUT = int(os.getenv("AMFI_MEMBERS_TIMEOUT", "30"))
+
     # Request configuration
     MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
     RETRY_DELAY = int(os.getenv("RETRY_DELAY", "5"))  # seconds
@@ -179,6 +185,7 @@ class Logging:
     FETCH_DAILY_LOG = "daily_nav_{date}.log"
     COMBINE_TABLE_LOG = "raw_nav_table_{date}.log"
     EXTRACT_METADATA_LOG = "extract_scheme_metadata_{date}.log"
+    EXTRACT_AMC_MEMBERS_LOG = "extract_amc_members_{date}.log"
     CLEAN_METADATA_LOG = "clean_scheme_metadata_{date}.log"
     ANALYTICAL_NAV_LOG = "analytical_nav_{date}.log"
     FETCH_AUM_LOG = "fetch_aum_{date}.log"

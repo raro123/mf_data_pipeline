@@ -156,7 +156,26 @@ The R2 extraction and local cleaning flows are currently separate. A future
 pipeline change should choose one canonical handoff and schedule cleaning plus
 master-data rebuilding.
 
-## 4. Scheme-wise AUM
+## 4. AMC Members
+
+```bash
+python -m scripts.extract_amc_members
+```
+
+The extractor fetches the AMFI member list, every listed member's detail
+record, and the social-media listing. It writes one complete, timestamped raw
+snapshot to:
+
+```text
+r2://financial-data-store/mutual_funds/amc_members/amc_members_<YYYYMMDDTHHMMSSZ>.parquet
+```
+
+Successful scheduled runs dispatch the datalake workflow, which appends unseen
+snapshot files to `mf.raw_amc_member_snapshot`. The raw table intentionally
+retains source records as JSON; clean-table design is deferred until the raw
+contents have been profiled.
+
+## 5. Scheme-wise AUM
 
 Run on demand:
 
@@ -185,8 +204,9 @@ repository.
 The active schedules are independent:
 
 1. Weekly metadata extraction: Saturday at 00:30 UTC / 06:00 IST.
-2. Daily NAV processing: every day at 06:30 UTC / 12:00 IST.
-3. Quarterly AUM extraction: the 10th of Jan/Apr/Jul/Oct at 00:30 UTC / 06:00 IST.
+2. Weekly AMC member extraction: Saturday at 01:30 UTC / 07:00 IST.
+3. Daily NAV processing: every day at 06:30 UTC / 12:00 IST.
+4. Quarterly AUM extraction: the 10th of Jan/Apr/Jul/Oct at 00:30 UTC / 06:00 IST.
 
 NIFTY benchmark ingestion is owned by the separate `nifty_index_ingestion`
 repository. It publishes to the datalake, which feeds the active tearsheet
