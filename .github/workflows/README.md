@@ -2,7 +2,7 @@
 
 ## `daily-nav-processing.yml`
 
-- Schedule: daily at 00:30 UTC / 06:00 IST
+- Schedule: daily at 06:30 UTC / 12:00 IST
 - Runtime: Python 3.9 and pip
 - Commands:
 

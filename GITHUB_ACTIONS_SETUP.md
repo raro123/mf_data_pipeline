@@ -7,13 +7,13 @@ run on schedule or through `workflow_dispatch` from the GitHub Actions tab.
 
 | Workflow file | Schedule | Purpose |
 | --- | --- | --- |
-| `daily-nav-processing.yml` | `30 0 * * *` | Fetch missing daily NAV data and rebuild clean growth-plan NAV in R2 |
+| `daily-nav-processing.yml` | `30 6 * * *` | Fetch missing daily NAV data and dispatch raw ingestion to the datalake |
 | `extract-scheme-metadata.yml` | `30 0 * * 6` | Extract a dated raw AMFI scheme metadata snapshot to R2 |
 | `fetch-aum-data.yml` | `30 0 10 1,4,7,10 *` | Fetch and publish a dated scheme-wise AUM snapshot to R2 |
 
 Schedule conversions:
 
-- 00:30 UTC is 06:00 IST on the same day.
+- 06:30 UTC is 12:00 IST on the same day for daily NAV processing.
 - Saturday 00:30 UTC is Saturday 06:00 IST.
 - 00:30 UTC on the 10th of a quarter month is 06:00 IST.
 

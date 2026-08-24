@@ -109,11 +109,11 @@ python -m scripts.test_github_actions_setup
 
 | Workflow | Schedule | Main modules |
 | --- | --- | --- |
-| Daily NAV | `30 0 * * *` | `fetch_daily_nav` |
+| Daily NAV | `30 6 * * *` | `fetch_daily_nav` |
 | Scheme metadata | `30 0 * * 6` | `extract_scheme_metadata` |
 | Scheme-wise AUM | `30 0 10 1,4,7,10 *` | `fetch_aum_data` |
 
-Schedules are UTC. Their IST times are 06:00 daily, 06:00 Saturday, and 06:00
+Schedules are UTC. Their IST times are 12:00 daily, 06:00 Saturday, and 06:00
 on the 10th of each quarter month, respectively.
 
 NIFTY benchmark ingestion is scheduled in the separate

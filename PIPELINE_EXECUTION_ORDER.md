@@ -142,7 +142,7 @@ repository.
 The active schedules are independent:
 
 1. Weekly metadata extraction: Saturday at 00:30 UTC / 06:00 IST.
-2. Daily NAV processing: every day at 00:30 UTC / 06:00 IST.
+2. Daily NAV processing: every day at 06:30 UTC / 12:00 IST.
 3. Quarterly AUM extraction: the 10th of Jan/Apr/Jul/Oct at 00:30 UTC / 06:00 IST.
 
 NIFTY benchmark ingestion is owned by the separate `nifty_index_ingestion`
