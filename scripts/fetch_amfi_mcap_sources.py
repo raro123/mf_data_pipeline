@@ -14,7 +14,7 @@ from html.parser import HTMLParser
 from io import BytesIO
 from pathlib import PurePosixPath
 from typing import Any
-from urllib.parse import unquote, urljoin, urlsplit
+from urllib.parse import quote, unquote, urljoin, urlsplit
 
 import requests
 
@@ -72,6 +72,7 @@ class ArchiveSummary:
     uploaded: int
     skipped: int
     repaired_objects: int
+    errors: tuple[str, ...] = ()
 
 
 @dataclass
@@ -365,12 +366,24 @@ def fetch_source(
 
 def download_all_sources(
     session: requests.Session,
-) -> list[DownloadedSource]:
-    """Discover and download all sources before any archive writes occur."""
+) -> tuple[list[DownloadedSource], list[str]]:
+    """Discover sources and isolate failures to individual downloads."""
     html = fetch_listing_html(session)
     links = discover_source_links(html, API.AMFI_MCAP_CATEGORISATION_URL)
     logger.info("Discovered %s AMFI market-cap workbook(s)", len(links))
-    return [fetch_source(session, source) for source in links]
+    downloads: list[DownloadedSource] = []
+    errors: list[str] = []
+    for source in links:
+        try:
+            downloads.append(fetch_source(session, source))
+        except RuntimeError as exc:
+            message = (
+                f"Failed to download {source.period_end} from "
+                f"{source.source_url}: {exc}"
+            )
+            logger.error(message)
+            errors.append(message)
+    return downloads, errors
 
 
 # ------ R2 inventory and manifests
@@ -557,6 +570,17 @@ def _put_source(
             "period-end": source.link.period_end.isoformat(),
             "source-content-sha256": source.source_content_sha256,
             "source-fetched-at": fetched_at.isoformat().replace("+00:00", "Z"),
+            "source-url": quote(source.source_url, safe=""),
+            "source-page-url": quote(
+                API.AMFI_MCAP_CATEGORISATION_URL,
+                safe="",
+            ),
+            "source-file-name": quote(source.link.source_file_name, safe=""),
+            "source-period-label": quote(
+                source.link.source_period_label,
+                safe="",
+            ),
+            "source-year": str(source.link.source_year),
         },
     )
 
@@ -594,14 +618,77 @@ def _download_identity(source: DownloadedSource) -> tuple[str, str]:
     return source.link.period_end.isoformat(), source.source_content_sha256
 
 
+def _manifest_from_source_object(
+    s3_client: Any,
+    r2: R2,
+    source_key: str,
+    head: dict[str, Any],
+) -> dict[str, Any]:
+    """Reconstruct exact provenance for an orphan workbook object."""
+    match = SOURCE_OBJECT_PATTERN.fullmatch(PurePosixPath(source_key).name)
+    if match is None:
+        raise ValueError(f"Invalid market-cap source object key: {source_key}")
+
+    metadata = head.get("Metadata", {})
+    required_metadata = (
+        "period-end",
+        "source-content-sha256",
+        "source-url",
+        "source-page-url",
+        "source-file-name",
+        "source-period-label",
+        "source-year",
+    )
+    missing = [key for key in required_metadata if not metadata.get(key)]
+    if missing:
+        raise ValueError(
+            "source object lacks repair metadata: " + ", ".join(missing)
+        )
+
+    period_end = date.fromisoformat(metadata["period-end"])
+    if match.group("period") != period_end.strftime("%Y%m%d"):
+        raise ValueError("source metadata period does not match its object key")
+    content_hash = metadata["source-content-sha256"]
+    if not re.fullmatch(r"[0-9a-f]{64}", content_hash):
+        raise ValueError("source object has invalid SHA-256 metadata")
+
+    response = s3_client.get_object(Bucket=r2.bucket_name, Key=source_key)
+    content = response["Body"].read()
+    if sha256(content).hexdigest() != content_hash:
+        raise ValueError("source object content does not match its SHA-256 metadata")
+    extension = match.group("extension")
+    validate_excel_content(content, extension)
+
+    fetched_at = _timestamp_from_source_key(source_key)
+    return {
+        "manifest_schema_version": MANIFEST_SCHEMA_VERSION,
+        "period_end": period_end.isoformat(),
+        "source_year": int(metadata["source-year"]),
+        "source_period_label": unquote(metadata["source-period-label"]),
+        "source_page_url": unquote(metadata["source-page-url"]),
+        "source_url": unquote(metadata["source-url"]),
+        "source_file_name": unquote(metadata["source-file-name"]),
+        "source_file_extension": extension,
+        "source_fetched_at": fetched_at.isoformat().replace("+00:00", "Z"),
+        "source_content_sha256": content_hash,
+        "source_content_length_bytes": len(content),
+        "source_content_type": head.get(
+            "ContentType",
+            "application/octet-stream",
+        ),
+        "r2_source_object_key": source_key,
+    }
+
+
 def repair_incomplete_pairs(
     s3_client: Any,
     r2: R2,
     inventory: ArchiveInventory,
     downloads_by_identity: dict[tuple[str, str], DownloadedSource],
-) -> int:
-    """Repair incomplete workbook/manifest pairs when source bytes are live."""
+) -> tuple[int, list[str]]:
+    """Repair safe incomplete pairs and report unrecoverable ones."""
     repaired = 0
+    errors: list[str] = []
 
     for manifest_key, manifest in sorted(inventory.manifests.items()):
         source_key = manifest["r2_source_object_key"]
@@ -610,9 +697,10 @@ def repair_incomplete_pairs(
         identity = _manifest_identity(manifest)
         source = downloads_by_identity.get(identity)
         if source is None:
-            raise RuntimeError(
+            errors.append(
                 f"Cannot repair missing workbook for manifest {manifest_key}"
             )
+            continue
         fetched_at = datetime.fromisoformat(
             manifest["source_fetched_at"].replace("Z", "+00:00")
         )
@@ -627,25 +715,26 @@ def repair_incomplete_pairs(
         for manifest in inventory.manifests.values()
     }
     for source_key in sorted(inventory.source_keys - referenced_sources):
-        head = s3_client.head_object(Bucket=r2.bucket_name, Key=source_key)
-        metadata = head.get("Metadata", {})
-        identity = (
-            metadata.get("period-end", ""),
-            metadata.get("source-content-sha256", ""),
-        )
-        source = downloads_by_identity.get(identity)
-        if source is None:
-            raise RuntimeError(f"Cannot repair missing manifest for {source_key}")
-        fetched_at = _timestamp_from_source_key(source_key)
-        manifest = build_manifest(source, source_key, fetched_at=fetched_at)
-        manifest_key = manifest_key_for_source(source_key)
-        _put_manifest(s3_client, r2, manifest_key, manifest)
-        inventory.manifests[manifest_key] = manifest
-        inventory.object_keys.add(manifest_key)
-        inventory.complete_identities.add(identity)
-        repaired += 1
+        try:
+            head = s3_client.head_object(Bucket=r2.bucket_name, Key=source_key)
+            manifest = _manifest_from_source_object(
+                s3_client,
+                r2,
+                source_key,
+                head,
+            )
+            manifest_key = manifest_key_for_source(source_key)
+            _put_manifest(s3_client, r2, manifest_key, manifest)
+            inventory.manifests[manifest_key] = manifest
+            inventory.object_keys.add(manifest_key)
+            inventory.complete_identities.add(_manifest_identity(manifest))
+            repaired += 1
+        except (KeyError, TypeError, ValueError) as exc:
+            errors.append(
+                f"Cannot repair missing manifest for {source_key}: {exc}"
+            )
 
-    return repaired
+    return repaired, errors
 
 
 # ------ Orchestration
@@ -662,7 +751,7 @@ def archive_downloads(
         downloads_by_identity.setdefault(_download_identity(source), source)
 
     inventory = load_archive_inventory(s3_client, r2)
-    repaired = repair_incomplete_pairs(
+    repaired, errors = repair_incomplete_pairs(
         s3_client,
         r2,
         inventory,
@@ -712,6 +801,7 @@ def archive_downloads(
         uploaded=uploaded,
         skipped=skipped,
         repaired_objects=repaired,
+        errors=tuple(errors),
     )
 
 
@@ -724,9 +814,12 @@ def main() -> int:
     )
     session: requests.Session | None = None
     s3_client = None
+    succeeded = False
     try:
         session = requests.Session()
-        downloads = download_all_sources(session)
+        downloads, download_errors = download_all_sources(session)
+        if not downloads:
+            raise RuntimeError("No valid AMFI market-cap workbooks were downloaded")
         r2 = R2()
         s3_client = r2.setup_s3_client()
         summary = archive_downloads(downloads, s3_client, r2)
@@ -737,18 +830,26 @@ def main() -> int:
             summary.skipped,
             summary.repaired_objects,
         )
+        errors = [*download_errors, *summary.errors]
+        if errors:
+            logger.error(
+                "Archive completed valid work with %s unresolved error(s)",
+                len(errors),
+            )
+            for error in errors:
+                logger.error("Unresolved archive error: %s", error)
+        else:
+            succeeded = True
     except Exception as exc:
         logger.error("AMFI market-cap source archiving failed: %s", exc)
-        log_script_end(logger, "AMFI Market-Cap Source Archiver", False)
-        return 1
     finally:
         if session is not None:
             session.close()
         if s3_client is not None:
             s3_client.close()
 
-    log_script_end(logger, "AMFI Market-Cap Source Archiver", True)
-    return 0
+    log_script_end(logger, "AMFI Market-Cap Source Archiver", succeeded)
+    return 0 if succeeded else 1
 
 
 if __name__ == "__main__":

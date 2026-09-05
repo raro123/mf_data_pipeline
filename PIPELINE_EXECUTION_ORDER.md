@@ -240,9 +240,10 @@ python -m scripts.fetch_amfi_mcap_sources
 ```
 
 The command discovers every Excel link on AMFI's market-cap categorisation
-page and downloads all files before writing anything to R2. It performs only
-file-level integrity checks and does not inspect worksheets or validate market
-capitalisation data.
+page and isolates download failures per workbook. Valid workbooks are archived
+even when another link fails, while the command still exits unsuccessfully so
+the missing source is visible. It performs only file-level integrity checks and
+does not inspect worksheets or validate market capitalisation data.
 
 Each distinct `(period_end, SHA-256)` version is stored as a workbook and JSON
 completion manifest:
@@ -254,9 +255,12 @@ r2://financial-data-store/mutual_funds/market_cap/source/
 ```
 
 Unchanged content is skipped. Revised content receives a new timestamped
-version, while incomplete workbook/manifest pairs are repaired when the live
-source still supplies the required bytes. Phase 0 does not dispatch the
-datalake; raw Parquet conversion is deferred to Phase 1.
+version. Workbook objects carry encoded provenance metadata so a missing
+manifest can be reconstructed from the archived bytes without borrowing
+details from a later live URL. A missing workbook is repaired when the live
+source still supplies the required bytes. Unrecoverable pairs are reported but
+do not block unrelated archives. Phase 0 does not dispatch the datalake; raw
+Parquet conversion is deferred to Phase 1.
 
 ## GitHub Actions Order
 

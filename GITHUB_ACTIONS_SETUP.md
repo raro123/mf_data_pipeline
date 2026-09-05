@@ -178,7 +178,9 @@ page, verifies file-container integrity, and archives the original bytes under
 `mutual_funds/market_cap/source/`. Each workbook has a JSON completion manifest
 containing its period, original filename, retrieval timestamp, URL, and full
 SHA-256. Unchanged content is skipped and revised content is retained as a new
-timestamped version. No datalake workflow is dispatched in Phase 0.
+timestamped version. Valid workbooks are archived even if another source link
+fails; the workflow remains failed until every discovered source succeeds. No
+datalake workflow is dispatched in Phase 0.
 
 ## Manual Verification
 

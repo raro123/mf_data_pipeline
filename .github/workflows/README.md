@@ -77,8 +77,9 @@ datalake, including safe filename-idempotent no-write reruns.
 The job archives every distinct AMFI market-cap categorisation workbook under
 `mutual_funds/market_cap/source/`, together with a JSON provenance manifest.
 It preserves the source bytes, skips unchanged period/hash pairs, and retains
-revised content as a new timestamped version. It does not parse workbook cells
-or dispatch a datalake workflow.
+revised content as a new timestamped version. A failed link does not block
+valid archives, but it still fails the workflow for operator visibility. It
+does not parse workbook cells or dispatch a datalake workflow.
 
 ## Shared Configuration
 

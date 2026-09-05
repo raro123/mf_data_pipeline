@@ -184,8 +184,10 @@ distinct Excel workbook byte-for-byte under
 download timestamp in their names. A matching `.manifest.json` sidecar stores
 the original filename, source URL, full SHA-256, and retrieval metadata.
 Unchanged content is skipped by `(period_end, SHA-256)`; revised workbooks are
-retained as new immutable versions. This Phase 0 job does not parse workbook
-cells, create Parquet, or dispatch datalake ingestion.
+retained as new immutable versions. A failed source link does not prevent valid
+workbooks from being archived, but the run still fails so the missing source is
+visible. This Phase 0 job does not parse workbook cells, create Parquet, or
+dispatch datalake ingestion.
 
 See `PIPELINE_EXECUTION_ORDER.md` for prerequisites and detailed ordering.
 

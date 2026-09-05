@@ -2,6 +2,7 @@
 
 import json
 import zipfile
+from dataclasses import replace
 from datetime import date, datetime, timezone
 from io import BytesIO
 from types import SimpleNamespace
@@ -100,7 +101,10 @@ class FakeS3Client:
 
     def head_object(self, *, Bucket, Key):
         del Bucket
-        return {"Metadata": self.objects[Key]["Metadata"]}
+        return {
+            "ContentType": self.objects[Key]["ContentType"],
+            "Metadata": self.objects[Key]["Metadata"],
+        }
 
     def close(self):
         self.closed = True
@@ -236,6 +240,31 @@ class TechnicalValidationTests(TestCase):
         ), self.assertRaises(RuntimeError):
             mcap.fetch_source(session, source_link())
 
+    def test_one_failed_download_does_not_discard_valid_sources(self):
+        failed_link = source_link(date(2025, 12, 31))
+        valid_link = source_link(date(2026, 6, 30))
+        valid_source = downloaded_source()
+        session = Mock()
+
+        with patch.object(
+            mcap,
+            "fetch_listing_html",
+            return_value="listing",
+        ), patch.object(
+            mcap,
+            "discover_source_links",
+            return_value=[failed_link, valid_link],
+        ), patch.object(
+            mcap,
+            "fetch_source",
+            side_effect=[RuntimeError("gone"), valid_source],
+        ):
+            downloads, errors = mcap.download_all_sources(session)
+
+        self.assertEqual(downloads, [valid_source])
+        self.assertEqual(len(errors), 1)
+        self.assertIn("2025-12-31", errors[0])
+
 
 class ArchiveTests(TestCase):
     def setUp(self):
@@ -297,6 +326,36 @@ class ArchiveTests(TestCase):
         manifest = json.loads(self.client.objects[manifest_key]["Body"])
         self.assertEqual(manifest["r2_source_object_key"], source_key)
 
+    def test_manifest_repair_preserves_original_source_provenance(self):
+        original = downloaded_source()
+        mcap.archive_downloads([original], self.client, self.r2)
+        source_key, manifest_key = mcap.source_object_keys(self.r2, original)
+        del self.client.objects[manifest_key]
+        moved_link = replace(
+            original.link,
+            source_url="https://portal.amfiindia.com/files/moved.xlsx",
+            source_file_name="moved.xlsx",
+        )
+        moved = replace(
+            original,
+            link=moved_link,
+            source_url=moved_link.source_url,
+        )
+
+        result = mcap.archive_downloads([moved], self.client, self.r2)
+
+        self.assertEqual(result, mcap.ArchiveSummary(1, 0, 1, 1))
+        manifest = json.loads(self.client.objects[manifest_key]["Body"])
+        self.assertEqual(manifest["source_url"], original.source_url)
+        self.assertEqual(
+            manifest["source_file_name"],
+            original.link.source_file_name,
+        )
+        self.assertEqual(
+            manifest["source_content_type"],
+            original.source_content_type,
+        )
+
     def test_repairs_missing_workbook_then_skips_complete_version(self):
         source = downloaded_source()
         mcap.archive_downloads([source], self.client, self.r2)
@@ -308,26 +367,71 @@ class ArchiveTests(TestCase):
         self.assertEqual(result, mcap.ArchiveSummary(1, 0, 1, 1))
         self.assertEqual(self.client.objects[source_key]["Body"], source.content)
 
-    def test_unrecoverable_incomplete_pair_fails(self):
+    def test_unrecoverable_pair_does_not_block_unrelated_archive(self):
         source = downloaded_source()
         mcap.archive_downloads([source], self.client, self.r2)
-        source_key, _manifest_key = mcap.source_object_keys(self.r2, source)
-        del self.client.objects[source_key]
+        source_key, manifest_key = mcap.source_object_keys(self.r2, source)
+        del self.client.objects[manifest_key]
+        self.client.objects[source_key]["Metadata"] = {
+            "period-end": source.link.period_end.isoformat(),
+            "source-content-sha256": source.source_content_sha256,
+        }
+        unrelated = downloaded_source(
+            period_end=date(2025, 12, 31),
+            fetched_at=datetime(2026, 9, 6, 8, 30, 15, tzinfo=timezone.utc),
+        )
 
-        with self.assertRaisesRegex(RuntimeError, "Cannot repair"):
-            mcap.archive_downloads([], self.client, self.r2)
+        result = mcap.archive_downloads([unrelated], self.client, self.r2)
+
+        self.assertEqual(result.uploaded, 1)
+        self.assertEqual(len(result.errors), 1)
+        self.assertIn("Cannot repair missing manifest", result.errors[0])
+        unrelated_key, unrelated_manifest_key = mcap.source_object_keys(
+            self.r2,
+            unrelated,
+        )
+        self.assertIn(unrelated_key, self.client.objects)
+        self.assertIn(unrelated_manifest_key, self.client.objects)
 
     def test_main_closes_http_and_s3_clients(self):
         source = downloaded_source()
         session = Mock()
         with patch.object(mcap.requests, "Session", return_value=session), patch.object(
-            mcap, "download_all_sources", return_value=[source]
+            mcap, "download_all_sources", return_value=([source], [])
         ), patch.object(mcap, "R2", return_value=self.r2):
             result = mcap.main()
 
         self.assertEqual(result, 0)
         session.close.assert_called_once()
         self.assertTrue(self.client.closed)
+
+    def test_main_archives_valid_sources_but_fails_on_partial_download(self):
+        source = downloaded_source()
+        session = Mock()
+        with patch.object(mcap.requests, "Session", return_value=session), patch.object(
+            mcap,
+            "download_all_sources",
+            return_value=([source], ["historical source unavailable"]),
+        ), patch.object(mcap, "R2", return_value=self.r2):
+            result = mcap.main()
+
+        self.assertEqual(result, 1)
+        self.assertEqual(len(self.client.objects), 2)
+        session.close.assert_called_once()
+        self.assertTrue(self.client.closed)
+
+    def test_main_writes_nothing_when_every_download_fails(self):
+        session = Mock()
+        with patch.object(mcap.requests, "Session", return_value=session), patch.object(
+            mcap,
+            "download_all_sources",
+            return_value=([], ["all sources unavailable"]),
+        ), patch.object(mcap, "R2") as r2_class:
+            result = mcap.main()
+
+        self.assertEqual(result, 1)
+        r2_class.assert_not_called()
+        session.close.assert_called_once()
 
 
 class FetchErrorTests(TestCase):
