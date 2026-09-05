@@ -41,9 +41,7 @@ class Paths:
     # Processed data directories
     RAW_NAV_HISTORICAL = PROCESSED_DATA / "nav_historical"  # Cleaned historical batches
     PROCESSED_NAV_DAILY = PROCESSED_DATA / "nav_daily"
-    NAV_COMBINED = PROCESSED_DATA / "nav_combined"
     PROCESSED_SCHEME_METADATA = PROCESSED_DATA / "scheme_metadata"
-    ANALYTICAL = PROCESSED_DATA / "analytical"
     PROCESSED_AUM = PROCESSED_DATA / "aum_schemewise"
     
     # Specific file paths
@@ -51,7 +49,6 @@ class Paths:
     SCHEME_METADATA_CSV = PROCESSED_SCHEME_METADATA / "amfi_scheme_metadata.csv"
     SCHEME_MASTERDATA = PROCESSED_SCHEME_METADATA / "scheme_masterdata.parquet"
     SCHEME_MASTERDATA_CSV = PROCESSED_SCHEME_METADATA / "scheme_masterdata.csv"
-    COMBINED_NAV_TABLE = NAV_COMBINED / "raw_nav_table.parquet"
     AUM_SCHEMEWISE = PROCESSED_AUM / "aum_schemewise.parquet"
     
     # Create all directories
@@ -69,9 +66,7 @@ class Paths:
             cls.RAW_AUM,
             cls.RAW_NAV_HISTORICAL,
             cls.PROCESSED_NAV_DAILY,
-            cls.NAV_COMBINED,
             cls.PROCESSED_SCHEME_METADATA,
-            cls.ANALYTICAL,
             cls.PROCESSED_AUM
         ]
         
@@ -185,13 +180,9 @@ class Logging:
     
     # Log file naming patterns
     FETCH_HISTORICAL_LOG = "nav_fetch_{date}.log"
-    CLEAN_HISTORICAL_LOG = "clean_nav_{date}.log"
-    FETCH_DAILY_LOG = "daily_nav_{date}.log"
-    COMBINE_TABLE_LOG = "raw_nav_table_{date}.log"
     EXTRACT_METADATA_LOG = "extract_scheme_metadata_{date}.log"
     EXTRACT_AMC_MEMBERS_LOG = "extract_amc_members_{date}.log"
     CLEAN_METADATA_LOG = "clean_scheme_metadata_{date}.log"
-    ANALYTICAL_NAV_LOG = "analytical_nav_{date}.log"
     FETCH_AUM_LOG = "fetch_aum_{date}.log"
     FETCH_TER_LOG = "fetch_ter_{date}.log"
     
@@ -261,14 +252,6 @@ def get_log_file_path(log_pattern: str, date_str: str = None) -> Path:
     
     filename = log_pattern.format(date=date_str)
     return Paths.LOGS / filename
-
-def get_batch_file_path(batch_num: int) -> Path:
-    """Generate path for historical batch files."""
-    return Paths.RAW_NAV_HISTORICAL / f"batch_{batch_num:02d}.parquet"
-
-def get_daily_nav_file_path(date_str: str) -> Path:
-    """Generate path for daily NAV files."""
-    return Paths.RAW_NAV_DAILY / f"daily_nav_{date_str}.parquet"
 
 def get_timestamped_metadata_file_path(date_str: str = None) -> Path:
     """Generate path for timestamped raw metadata files."""

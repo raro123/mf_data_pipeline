@@ -1,6 +1,6 @@
 # Datalake Migration Status
 
-_Status checked: August 4, 2026_
+_Status checked: August 31, 2026_
 
 ## Current State
 
@@ -60,19 +60,16 @@ they are no longer pipeline inputs or scheduled outputs.
 - The legacy NAV validation report was retired because it read a frozen clean
   output.
 - Repository runbooks now describe the raw-to-datalake flow as authoritative.
+- The in-repo rollback utility `scripts/daily_nav_clean.py` has been removed.
+  It previously rebuilt the legacy clean NAV object and is no longer available.
 
-## Retained Rollback Artifacts
+## Retained R2 Artifacts
 
-The deprecated rollback utility remains in the repository temporarily but is
-not scheduled or authoritative. It rebuilds:
+The following objects may still exist in R2. They are not pipeline inputs,
+scheduled outputs, or rebuildable from this repository:
 
 ```text
 r2://financial-data-store/mutual_funds/clean/nav_daily_growth_plan.parquet
-```
-
-The utility depends on the legacy metadata object:
-
-```text
 r2://financial-data-store/mutual_funds/clean/scheme_metadata.parquet
 ```
 

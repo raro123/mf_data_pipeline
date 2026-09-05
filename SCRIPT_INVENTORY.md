@@ -11,7 +11,6 @@ All executable modules are under `scripts/` and can be run with
 | `transform_historical_nav.py` | Active, manual | Local historical CSV files | R2 `mutual_funds/raw/nav_historical.parquet` |
 | `fetch_daily_nav.py` | Active, scheduled | AMFI and dated raw NAV object names in R2 | Dated raw NAV Parquet in R2 |
 | `repair_missing_nav.py` | Active, manual | Current AMFI history and existing raw NAV objects in R2 | Immutable missing-only NAV repair Parquet in R2 with `--write` |
-| `daily_nav_clean.py` | Deprecated rollback utility, not scheduled | Raw NAV and clean scheme metadata in R2 | Legacy R2 clean output, if explicitly invoked |
 
 ## Scheme Metadata Scripts
 
@@ -21,7 +20,6 @@ All executable modules are under `scripts/` and can be run with
 | `fetch_ter_data.py` | Active, scheduled/manual | AMFI monthly all-fund TER XLSX export | Immutable validated Zstandard TER Parquet in R2 |
 | `clean_scheme_metadata.py` | Active, local | Latest local timestamped metadata CSV | Clean local CSV and Parquet |
 | `build_scheme_masterdata.py` | Active, local | Clean local metadata and prior master data | Updated local master-data CSV and Parquet |
-| `demo_masterdata.py` | Demonstration only | Synthetic in-memory data | Console output/demo files as coded |
 
 The scheduled extractor does not feed the local cleaner automatically. The
 local metadata flow remains separate from the datalake metadata flow.
@@ -42,7 +40,8 @@ local metadata flow remains separate from the datalake metadata flow.
 | `test_github_actions_setup.py` | Manual diagnostic | Check environment variables, R2 connectivity, dependencies, and script availability |
 
 Focused unit tests for daily NAV checkpoint, gap behavior, missing-only
-repairs, and TER extraction live under `tests/`. Run them with:
+repairs, AUM, AMC members, and TER extraction live under `tests/`. Run them
+with:
 
 ```bash
 python -m unittest discover -s tests -v
@@ -74,6 +73,10 @@ artifacts, but no current script rebuilds them.
 `generate_nav_validation_report.py` was retired because it read the legacy
 `clean/nav_daily_growth_plan.parquet` object. NAV freshness validation should
 query the canonical datalake tables instead.
+
+`daily_nav_clean.py` was removed after the datalake NAV tables became
+canonical. It rebuilt the legacy R2 clean NAV object and is no longer a
+rollback path in this repository.
 
 See `MIGRATION_STATUS.md` for the completed raw NAV migration and remaining
 R2 object-retirement steps.

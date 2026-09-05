@@ -8,7 +8,7 @@ through the datalake.
 The repository currently uses a hybrid architecture:
 
 - Cloudflare R2 is the operational store for scheduled NAV, metadata, AMC
-  member, and AUM jobs.
+  member, AUM, and TER jobs.
 - Local CSV and Parquet files under `data/` support historical backfills,
   metadata cleaning, master-data maintenance, and exploratory analysis.
 - DuckDB is used for R2 access, joins, validation queries, and Parquet output.
@@ -180,7 +180,6 @@ scripts/                Executable ingestion and transformation modules
 utils/                  Shared NAV and logging helpers
 .github/workflows/      Scheduled GitHub Actions jobs
 data/                   Local raw, processed, and report artifacts (gitignored)
-flat_files/             Manually maintained reference inputs
 notebooks/              Exploratory analysis
 ```
 
@@ -196,7 +195,8 @@ notebooks/              Exploratory analysis
   from an older pipeline generation; no current script rebuilds them.
 - NAV freshness and completeness validation belongs with the datalake tables;
   the former report over the legacy clean Parquet has been retired.
-- Unit coverage currently focuses on daily NAV checkpoint and gap behavior.
+- Unit coverage currently covers daily NAV checkpoint and gap behavior,
+  missing-only repairs, AUM, AMC members, and TER extraction.
   `test_github_actions_setup.py` remains a separate environment and
   connectivity diagnostic rather than a unit test.
 

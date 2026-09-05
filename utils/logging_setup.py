@@ -196,21 +196,6 @@ def get_historical_fetch_logger(name: str = __name__) -> logging.Logger:
     return setup_logger(name, Logging.FETCH_HISTORICAL_LOG)
 
 
-def get_historical_clean_logger(name: str = __name__) -> logging.Logger:
-    """Get logger for historical NAV cleaning."""
-    return setup_logger(name, Logging.CLEAN_HISTORICAL_LOG)
-
-
-def get_daily_fetch_logger(name: str = __name__) -> logging.Logger:
-    """Get logger for daily NAV fetching."""
-    return setup_logger(name, Logging.FETCH_DAILY_LOG)
-
-
-def get_combine_table_logger(name: str = __name__) -> logging.Logger:
-    """Get logger for combined table creation."""
-    return setup_logger(name, Logging.COMBINE_TABLE_LOG)
-
-
 def get_extract_metadata_logger(name: str = __name__) -> logging.Logger:
     """Get logger for scheme metadata extraction."""
     return setup_logger(name, Logging.EXTRACT_METADATA_LOG)
@@ -229,10 +214,6 @@ def get_fetch_ter_logger(name: str = __name__) -> logging.Logger:
 def get_clean_metadata_logger(name: str = __name__) -> logging.Logger:
     """Get logger for scheme metadata cleaning."""
     return setup_logger(name, Logging.CLEAN_METADATA_LOG)
-
-def get_analytical_nav_logger(name: str = __name__) -> logging.Logger:
-    """Get logger for analytical NAV dataset creation."""
-    return setup_logger(name, Logging.ANALYTICAL_NAV_LOG)
 
 
 if __name__ == "__main__":

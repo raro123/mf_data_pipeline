@@ -2,9 +2,10 @@
 
 ## Project Purpose
 
-This repository collects and prepares Indian mutual-fund data, primarily from
-AMFI. Its main outputs are NAV history, enriched daily growth-plan NAV, scheme
-metadata and master data, and scheme-wise AUM. NIFTY benchmark data is
+This repository collects Indian mutual-fund source data, primarily from AMFI,
+and publishes immutable raw snapshots (NAV, scheme metadata, AMC members, AUM,
+and TER). Canonical analysis tables such as `mf.nav_daily` and
+`mf.nav_daily_open_growth` are built by the datalake. NIFTY benchmark data is
 maintained by the separate `nifty_index_ingestion` repository.
 
 The codebase is a collection of executable Python modules rather than an
@@ -17,8 +18,8 @@ installed application package.
   cleaning, master-data maintenance, reports, and analysis.
 - DuckDB provides R2 access, Parquet reads/writes, joins, and validation SQL.
 - Pandas handles API responses and local transformations.
-- GitHub Actions schedules daily NAV, weekly metadata extraction, and quarterly
-  AUM extraction.
+- GitHub Actions schedules daily NAV, weekly metadata and AMC member
+  extraction, quarterly AUM extraction, and twice-monthly TER extraction.
 
 R2 paths are built by `config.settings.R2`:
 
@@ -48,7 +49,6 @@ utils/nav_helpers.py     Shared AMFI NAV normalization and Parquet writing
 utils/logging_setup.py   Shared logger setup and logging helpers
 .github/workflows/       Scheduled production jobs
 data/                    Local data and reports; ignored by git
-flat_files/              Manual reference inputs
 notebooks/               Exploratory analysis
 ```
 
@@ -100,6 +100,19 @@ python -m scripts.clean_scheme_metadata
 python -m scripts.build_scheme_masterdata
 ```
 
+Weekly AMC member snapshot:
+
+```bash
+python -m scripts.extract_amc_members
+```
+
+Monthly TER extraction:
+
+```bash
+python -m scripts.fetch_ter_data --scheduled
+python -m scripts.fetch_ter_data --month YYYY-MM
+```
+
 Optional jobs:
 
 ```bash
@@ -119,10 +132,13 @@ python -m scripts.test_github_actions_setup
 | --- | --- | --- |
 | Daily NAV | `30 6 * * *` | `fetch_daily_nav` |
 | Scheme metadata | `30 0 * * 6` | `extract_scheme_metadata` |
+| AMC members | `30 1 * * 6` | `extract_amc_members` |
 | Scheme-wise AUM | `30 0 10 1,4,7,10 *` | `fetch_aum_data` |
+| TER | `30 7 5,20 * *` | `fetch_ter_data --scheduled` |
 
-Schedules are UTC. Their IST times are 12:00 daily, 06:00 Saturday, and 06:00
-on the 10th of each quarter month, respectively.
+Schedules are UTC. Their IST times are 12:00 daily, Saturday 06:00 (metadata)
+and 07:00 (AMC members), 06:00 on the 10th of each quarter month, and 13:00 on
+the 5th and 20th (TER).
 
 NIFTY benchmark ingestion is scheduled in the separate
 `nifty_index_ingestion` repository and dispatches successful raw uploads to the
@@ -143,8 +159,7 @@ These flows are not connected. The scheduled metadata job does not:
 - publish a canonical clean metadata object to R2.
 
 The canonical NAV tables are built by the datalake from raw NAV objects. The
-deprecated repository-side clean utility is no longer part of scheduled
-processing.
+former repository-side clean utility has been removed from this repository.
 
 ### Raw NAV extraction is independent of clean outputs
 
@@ -234,8 +249,9 @@ Parquet unless an existing workflow explicitly needs CSV for inspection.
 - Be careful with overwrite behavior in `save_to_parquet`: DuckDB `COPY` writes
   the target object represented by the supplied path.
 - Add focused tests when changing parsing, classification, date-gap logic, or
-  master-data merge behavior. Existing unit coverage currently focuses on the
-  daily NAV checkpoint and gap logic under `tests/`.
+  master-data merge behavior. Existing unit coverage under `tests/` includes
+  daily NAV checkpoint and gap logic, missing-only repairs, AUM, AMC members,
+  and TER extraction.
 - Do not manually edit or commit generated files under `data/` or `logs/`.
   Pipeline and validation commands may update them as part of their normal
   operation; they remain gitignored local artifacts.

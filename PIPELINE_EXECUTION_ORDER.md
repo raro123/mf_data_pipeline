@@ -189,7 +189,7 @@ The job writes a dated local Parquet file under
 `data/processed/aum_schemewise/` and uploads the same data under the R2
 `mutual_funds/aum/` prefix.
 
-## 5. Zerodha Instruments
+## 6. Zerodha Instruments
 
 ```bash
 python -m scripts.ingest_zerodha_mf
@@ -199,7 +199,7 @@ This is a separate optional workflow. It requires Kite Connect credentials and
 uploads a dated CSV instrument dump to R2. It is not scheduled by this
 repository.
 
-## 6. Monthly TER Extraction
+## 7. Monthly TER Extraction
 
 Run one current-month snapshot manually:
 
@@ -259,7 +259,6 @@ pipeline outputs.
 
 ## Migration Follow-up
 
-Raw NAV extraction is independent of legacy clean output, and the legacy clean
-workflow step has been retired after end-to-end observation through
-`mf.nav_daily`. Follow the remaining R2 object-retirement guidance in
-`MIGRATION_STATUS.md`.
+Raw NAV extraction is independent of legacy clean output. The in-repo clean
+rollback utility has been removed. Follow the remaining R2 object-retirement
+guidance in `MIGRATION_STATUS.md`.
