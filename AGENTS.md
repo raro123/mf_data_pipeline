@@ -4,7 +4,8 @@
 
 This repository collects Indian mutual-fund source data, primarily from AMFI,
 and publishes immutable raw snapshots (NAV, scheme metadata, AMC members, AUM,
-and TER). Canonical analysis tables such as `mf.nav_daily` and
+and TER), plus original AMFI market-cap workbooks. Canonical analysis tables
+such as `mf.nav_daily` and
 `mf.nav_daily_open_growth` are built by the datalake. NIFTY benchmark data is
 maintained by the separate `nifty_index_ingestion` repository.
 
@@ -19,7 +20,8 @@ installed application package.
 - DuckDB provides R2 access, Parquet reads/writes, joins, and validation SQL.
 - Pandas handles API responses and local transformations.
 - GitHub Actions schedules daily NAV, weekly metadata and AMC member
-  extraction, quarterly AUM extraction, and twice-monthly TER extraction.
+  extraction, quarterly AUM extraction, twice-monthly TER extraction, and a
+  monthly market-cap source archive.
 
 R2 paths are built by `config.settings.R2`:
 
@@ -113,6 +115,12 @@ python -m scripts.fetch_ter_data --scheduled
 python -m scripts.fetch_ter_data --month YYYY-MM
 ```
 
+Monthly market-cap source archive:
+
+```bash
+python -m scripts.fetch_amfi_mcap_sources
+```
+
 Optional jobs:
 
 ```bash
@@ -135,10 +143,11 @@ python -m scripts.test_github_actions_setup
 | AMC members | `30 1 * * 6` | `extract_amc_members` |
 | Scheme-wise AUM | `30 0 10 1,4,7,10 *` | `fetch_aum_data` |
 | TER | `30 7 5,20 * *` | `fetch_ter_data --scheduled` |
+| Market-cap sources | `30 2 15 * *` | `fetch_amfi_mcap_sources` |
 
 Schedules are UTC. Their IST times are 12:00 daily, Saturday 06:00 (metadata)
-and 07:00 (AMC members), 06:00 on the 10th of each quarter month, and 13:00 on
-the 5th and 20th (TER).
+and 07:00 (AMC members), 06:00 on the 10th of each quarter month, 13:00 on the
+5th and 20th (TER), and 08:00 on the 15th (market-cap sources).
 
 NIFTY benchmark ingestion is scheduled in the separate
 `nifty_index_ingestion` repository and dispatches successful raw uploads to the
@@ -251,7 +260,7 @@ Parquet unless an existing workflow explicitly needs CSV for inspection.
 - Add focused tests when changing parsing, classification, date-gap logic, or
   master-data merge behavior. Existing unit coverage under `tests/` includes
   daily NAV checkpoint and gap logic, missing-only repairs, AUM, AMC members,
-  and TER extraction.
+  TER extraction, and market-cap source archiving.
 - Do not manually edit or commit generated files under `data/` or `logs/`.
   Pipeline and validation commands may update them as part of their normal
   operation; they remain gitignored local artifacts.

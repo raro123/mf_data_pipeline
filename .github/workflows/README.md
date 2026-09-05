@@ -68,6 +68,18 @@ the current month. TER runs are serialized to avoid concurrent writes. It does
 not retain the XLSX. Every successful run dispatches raw ingestion to the
 datalake, including safe filename-idempotent no-write reruns.
 
+## `fetch-amfi-mcap-sources.yml`
+
+- Schedule: the 15th of each month at 02:30 UTC / 08:00 IST
+- Runtime: Python 3.12 and uv
+- Command: `uv run python -m scripts.fetch_amfi_mcap_sources`
+
+The job archives every distinct AMFI market-cap categorisation workbook under
+`mutual_funds/market_cap/source/`, together with a JSON provenance manifest.
+It preserves the source bytes, skips unchanged period/hash pairs, and retains
+revised content as a new timestamped version. It does not parse workbook cells
+or dispatch a datalake workflow.
+
 ## Shared Configuration
 
 All workflows require these GitHub Actions secrets:

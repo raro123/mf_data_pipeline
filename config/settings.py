@@ -8,8 +8,10 @@ them in individual scripts.
 
 import os
 from pathlib import Path
-from dotenv import load_dotenv
+
+import boto3
 import duckdb
+from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
@@ -87,13 +89,48 @@ class R2:
         self.bucket_name = bucket_name
         self.asset_class = asset_class
     
-    def get_full_path(self,clean_raw, file_name,file_extension='parquet'):
-        return f"r2://{self.bucket_name}/{self.asset_class}/{clean_raw}/{file_name}.{file_extension}"
+    def get_object_key(
+        self,
+        area: str,
+        file_name: str,
+        file_extension: str = "parquet",
+    ) -> str:
+        """Return an R2 object key below the configured asset class."""
+        return f"{self.asset_class}/{area}/{file_name}.{file_extension}"
+
+    def get_full_path(
+        self,
+        clean_raw: str,
+        file_name: str,
+        file_extension: str = "parquet",
+    ) -> str:
+        """Return a DuckDB-compatible R2 URI."""
+        object_key = self.get_object_key(
+            clean_raw,
+            file_name,
+            file_extension,
+        )
+        return f"r2://{self.bucket_name}/{object_key}"
     
     # R2 Credentials from environment variables
     ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID", "")
     SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY", "")
     ACCOUNT_ID = os.getenv("R2_ACCOUNT_ID", "")
+
+    def setup_s3_client(self):
+        """Create an S3-compatible client for binary R2 objects."""
+        if not all((self.ACCESS_KEY_ID, self.SECRET_ACCESS_KEY, self.ACCOUNT_ID)):
+            raise ValueError("R2 credentials are not fully configured")
+
+        return boto3.session.Session().client(
+            "s3",
+            endpoint_url=(
+                f"https://{self.ACCOUNT_ID}.r2.cloudflarestorage.com"
+            ),
+            region_name="auto",
+            aws_access_key_id=self.ACCESS_KEY_ID,
+            aws_secret_access_key=self.SECRET_ACCESS_KEY,
+        )
     
     def setup_connection(self):
         con = duckdb.connect()
@@ -135,6 +172,12 @@ class API:
     # AMFI Total Expense Ratio monthly Excel export
     AMFI_TER_URL = "https://www.amfiindia.com/api/populate-te-rdata-revised"
     AMFI_TER_TIMEOUT = int(os.getenv("AMFI_TER_TIMEOUT", "60"))
+
+    # AMFI half-yearly market-cap categorisation workbooks
+    AMFI_MCAP_CATEGORISATION_URL = (
+        "https://www.amfiindia.com/otherdata/categorisation-of-stocks"
+    )
+    AMFI_MCAP_TIMEOUT = int(os.getenv("AMFI_MCAP_TIMEOUT", "60"))
 
     # AMFI AMC members APIs
     AMFI_MEMBERS_URL = "https://www.amfiindia.com/api/members"
@@ -185,6 +228,7 @@ class Logging:
     CLEAN_METADATA_LOG = "clean_scheme_metadata_{date}.log"
     FETCH_AUM_LOG = "fetch_aum_{date}.log"
     FETCH_TER_LOG = "fetch_ter_{date}.log"
+    FETCH_AMFI_MCAP_SOURCES_LOG = "fetch_amfi_mcap_sources_{date}.log"
     
     # Log retention
     LOG_RETENTION_DAYS = int(os.getenv("LOG_RETENTION_DAYS", "30"))

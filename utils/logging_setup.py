@@ -211,6 +211,13 @@ def get_fetch_ter_logger(name: str = __name__) -> logging.Logger:
     return setup_logger(name, Logging.FETCH_TER_LOG)
 
 
+def get_fetch_amfi_mcap_sources_logger(
+    name: str = __name__,
+) -> logging.Logger:
+    """Get logger for AMFI market-cap source archiving."""
+    return setup_logger(name, Logging.FETCH_AMFI_MCAP_SOURCES_LOG)
+
+
 def get_clean_metadata_logger(name: str = __name__) -> logging.Logger:
     """Get logger for scheme metadata cleaning."""
     return setup_logger(name, Logging.CLEAN_METADATA_LOG)

@@ -231,6 +231,33 @@ written. Every successful workflow run dispatches raw TER ingestion to the
 datalake; a successful no-write rerun is safe because ingestion is idempotent
 by source filename.
 
+## 8. AMFI Market-Cap Source Archive
+
+Run the complete source synchronization manually with:
+
+```bash
+python -m scripts.fetch_amfi_mcap_sources
+```
+
+The command discovers every Excel link on AMFI's market-cap categorisation
+page and downloads all files before writing anything to R2. It performs only
+file-level integrity checks and does not inspect worksheets or validate market
+capitalisation data.
+
+Each distinct `(period_end, SHA-256)` version is stored as a workbook and JSON
+completion manifest:
+
+```text
+r2://financial-data-store/mutual_funds/market_cap/source/
+  market_cap_<YYYYMMDD>_<YYYYMMDDTHHMMSSZ>.<xlsx|xls>
+  market_cap_<YYYYMMDD>_<YYYYMMDDTHHMMSSZ>.manifest.json
+```
+
+Unchanged content is skipped. Revised content receives a new timestamped
+version, while incomplete workbook/manifest pairs are repaired when the live
+source still supplies the required bytes. Phase 0 does not dispatch the
+datalake; raw Parquet conversion is deferred to Phase 1.
+
 ## GitHub Actions Order
 
 The active schedules are independent:
@@ -240,6 +267,7 @@ The active schedules are independent:
 3. Daily NAV processing: every day at 06:30 UTC / 12:00 IST.
 4. Quarterly AUM extraction: the 10th of Jan/Apr/Jul/Oct at 00:30 UTC / 06:00 IST.
 5. TER extraction: the 5th and 20th at 07:30 UTC / 13:00 IST.
+6. AMFI market-cap source archive: the 15th monthly at 02:30 UTC / 08:00 IST.
 
 NIFTY benchmark ingestion is owned by the separate `nifty_index_ingestion`
 repository. It publishes to the datalake, which feeds the active tearsheet

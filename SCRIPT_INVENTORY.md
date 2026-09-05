@@ -18,6 +18,7 @@ All executable modules are under `scripts/` and can be run with
 | --- | --- | --- | --- |
 | `extract_scheme_metadata.py` | Active, scheduled | AMFI scheme download | Dated raw metadata Parquet in R2 |
 | `fetch_ter_data.py` | Active, scheduled/manual | AMFI monthly all-fund TER XLSX export | Immutable validated Zstandard TER Parquet in R2 |
+| `fetch_amfi_mcap_sources.py` | Active, scheduled/manual | AMFI market-cap categorisation page and linked Excel files | Immutable source workbooks and JSON manifests in R2 |
 | `clean_scheme_metadata.py` | Active, local | Latest local timestamped metadata CSV | Clean local CSV and Parquet |
 | `build_scheme_masterdata.py` | Active, local | Clean local metadata and prior master data | Updated local master-data CSV and Parquet |
 
@@ -31,6 +32,7 @@ local metadata flow remains separate from the datalake metadata flow.
 | `extract_amc_members.py` | Active, scheduled | Fetch a complete weekly AMFI member snapshot and upload immutable raw Parquet to R2 |
 | `fetch_aum_data.py` | Active, on demand | Fetch AMFI scheme-wise average AUM for selected financial years and periods |
 | `fetch_ter_data.py` | Active, scheduled/manual | Fetch, validate, publish, and dispatch raw monthly all-fund TER snapshots |
+| `fetch_amfi_mcap_sources.py` | Active, scheduled/manual | Archive distinct AMFI market-cap source workbooks without parsing their cells |
 | `ingest_zerodha_mf.py` | Optional | Fetch the Zerodha mutual-fund instrument dump and upload a dated CSV to R2 |
 
 ## Diagnostics
@@ -40,7 +42,8 @@ local metadata flow remains separate from the datalake metadata flow.
 | `test_github_actions_setup.py` | Manual diagnostic | Check environment variables, R2 connectivity, dependencies, and script availability |
 
 Focused unit tests for daily NAV checkpoint, gap behavior, missing-only
-repairs, AUM, AMC members, and TER extraction live under `tests/`. Run them
+repairs, AUM, AMC members, TER extraction, and market-cap source archiving live
+under `tests/`. Run them
 with:
 
 ```bash

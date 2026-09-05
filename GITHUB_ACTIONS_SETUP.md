@@ -1,6 +1,6 @@
 # GitHub Actions Setup
 
-The repository has five active workflows under `.github/workflows/`. All can
+The repository has six active workflows under `.github/workflows/`. All can
 run on schedule or through `workflow_dispatch` from the GitHub Actions tab.
 
 ## Active Workflows
@@ -12,6 +12,7 @@ run on schedule or through `workflow_dispatch` from the GitHub Actions tab.
 | `extract-amc-members.yml` | `30 1 * * 6` | Extract an immutable raw AMFI AMC-member snapshot and dispatch datalake ingestion |
 | `fetch-aum-data.yml` | `30 0 10 1,4,7,10 *` | Fetch and publish a dated scheme-wise AUM snapshot to R2 |
 | `fetch-ter-data.yml` | `30 7 5,20 * *` | Publish monthly AMFI TER snapshots and dispatch raw datalake ingestion |
+| `fetch-amfi-mcap-sources.yml` | `30 2 15 * *` | Archive immutable AMFI market-cap source workbooks and manifests in R2 |
 
 Schedule conversions:
 
@@ -20,6 +21,7 @@ Schedule conversions:
 - Saturday 01:30 UTC is Saturday 07:00 IST.
 - 00:30 UTC on the 10th of a quarter month is 06:00 IST.
 - 07:30 UTC on the 5th and 20th is 13:00 IST on the same day.
+- 02:30 UTC on the 15th is 08:00 IST on the same day.
 
 India does not observe daylight saving time.
 
@@ -48,8 +50,9 @@ The workflows use defaults when these repository variables are absent:
 | `AMFI_SCHEME_TIMEOUT` | `30` | Daily NAV environment and metadata extraction |
 | `AMFI_MEMBERS_TIMEOUT` | `30` | AMC member extraction |
 | `AMFI_TER_TIMEOUT` | `60` | TER extraction |
-| `MAX_RETRIES` | `3` | Daily NAV and TER extraction |
-| `RETRY_DELAY` | `5` | Daily NAV and TER extraction |
+| `AMFI_MCAP_TIMEOUT` | `60` | Market-cap source archive |
+| `MAX_RETRIES` | `3` | Daily NAV, TER, and market-cap extraction |
+| `RETRY_DELAY` | `5` | Daily NAV, TER, and market-cap extraction |
 | `HISTORICAL_FETCH_DAYS` | `90` | Exposed to daily NAV environment, mainly used by historical fetches |
 | `CHUNK_SIZE` | `10000` | Exposed to daily NAV environment |
 | `LOG_LEVEL` | `INFO` | All workflows |
@@ -75,8 +78,12 @@ mutual_funds/
 |   `-- amc_members_<YYYYMMDDTHHMMSSZ>.parquet
 |-- aum/
 |   `-- aum_schemewise_<YYYYMMDD>.parquet
-`-- ter/
-    `-- ter_<YYYYMM>_snapshot_<YYYYMMDD>.parquet
+|-- ter/
+|   `-- ter_<YYYYMM>_snapshot_<YYYYMMDD>.parquet
+`-- market_cap/
+    `-- source/
+        |-- market_cap_<period_end>_<UTC-timestamp>.<xlsx|xls>
+        `-- market_cap_<period_end>_<UTC-timestamp>.manifest.json
 ```
 
 The dated raw NAV and metadata objects are the operational inputs. Canonical
@@ -157,6 +164,21 @@ dispatches successful runs to the datalake's raw TER receiver. This includes
 successful no-write reruns because the receiver is filename-idempotent.
 Workflow runs are serialized to prevent overlapping writes to the same daily
 snapshot.
+
+### Monthly AMFI Market-Cap Source Archive
+
+Runtime: Python 3.12 with dependencies installed by uv.
+
+```bash
+uv run python -m scripts.fetch_amfi_mcap_sources
+```
+
+The job discovers every Excel workbook on AMFI's market-cap categorisation
+page, verifies file-container integrity, and archives the original bytes under
+`mutual_funds/market_cap/source/`. Each workbook has a JSON completion manifest
+containing its period, original filename, retrieval timestamp, URL, and full
+SHA-256. Unchanged content is skipped and revised content is retained as a new
+timestamped version. No datalake workflow is dispatched in Phase 0.
 
 ## Manual Verification
 
