@@ -12,7 +12,7 @@ run on schedule or through `workflow_dispatch` from the GitHub Actions tab.
 | `extract-amc-members.yml` | `30 1 * * 6` | Extract an immutable raw AMFI AMC-member snapshot and dispatch datalake ingestion |
 | `fetch-aum-data.yml` | `30 0 10 1,4,7,10 *` | Fetch and publish a dated scheme-wise AUM snapshot to R2 |
 | `fetch-ter-data.yml` | `30 7 5,20 * *` | Publish monthly AMFI TER snapshots and dispatch raw datalake ingestion |
-| `fetch-amfi-mcap-sources.yml` | `30 2 15 * *` | Archive immutable AMFI market-cap source workbooks and manifests in R2 |
+| `fetch-amfi-mcap-sources.yml` | `30 2 15 * *` | Archive AMFI market-cap sources, publish raw Parquet, and dispatch datalake ingestion |
 
 Schedule conversions:
 
@@ -81,9 +81,11 @@ mutual_funds/
 |-- ter/
 |   `-- ter_<YYYYMM>_snapshot_<YYYYMMDD>.parquet
 `-- market_cap/
-    `-- source/
-        |-- market_cap_<period_end>_<UTC-timestamp>.<xlsx|xls>
-        `-- market_cap_<period_end>_<UTC-timestamp>.manifest.json
+    |-- source/
+    |   |-- market_cap_<period_end>_<UTC-timestamp>.<xlsx|xls>
+    |   `-- market_cap_<period_end>_<UTC-timestamp>.manifest.json
+    `-- raw/
+        `-- market_cap_<period_end>_<UTC-timestamp>.parquet
 ```
 
 The dated raw NAV and metadata objects are the operational inputs. Canonical
@@ -165,12 +167,13 @@ successful no-write reruns because the receiver is filename-idempotent.
 Workflow runs are serialized to prevent overlapping writes to the same daily
 snapshot.
 
-### Monthly AMFI Market-Cap Source Archive
+### Monthly AMFI Market-Cap Pipeline
 
 Runtime: Python 3.12 with dependencies installed by uv.
 
 ```bash
 uv run python -m scripts.fetch_amfi_mcap_sources
+uv run python -m scripts.transform_amfi_mcap_sources
 ```
 
 The job discovers every Excel workbook on AMFI's market-cap categorisation
@@ -179,8 +182,13 @@ page, verifies file-container integrity, and archives the original bytes under
 containing its period, original filename, retrieval timestamp, URL, and full
 SHA-256. Unchanged content is skipped and revised content is retained as a new
 timestamped version. Valid workbooks are archived even if another source link
-fails; the workflow remains failed until every discovered source succeeds. No
-datalake workflow is dispatched in Phase 0.
+fails; the workflow remains failed until every discovered source succeeds.
+
+After the archive succeeds, the workflow verifies every complete source pair
+and publishes one immutable values-only raw Parquet object per revision. It
+does not create raw JSON sidecars. The datalake dispatch occurs only after the
+transform completes successfully; any archive or transform failure prevents
+the dispatch.
 
 ## Manual Verification
 

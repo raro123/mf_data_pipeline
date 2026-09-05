@@ -259,8 +259,30 @@ version. Workbook objects carry encoded provenance metadata so a missing
 manifest can be reconstructed from the archived bytes without borrowing
 details from a later live URL. A missing workbook is repaired when the live
 source still supplies the required bytes. Unrecoverable pairs are reported but
-do not block unrelated archives. Phase 0 does not dispatch the datalake; raw
-Parquet conversion is deferred to Phase 1.
+do not block unrelated archives.
+
+Transform every complete archived source revision with:
+
+```bash
+python -m scripts.transform_amfi_mcap_sources
+```
+
+The transformer verifies each manifest, referenced workbook length, and
+SHA-256 before opening it. It supports XLSX cached values and legacy XLS,
+requires exactly one recognized 11-column worksheet, and preserves every
+nonblank mapped row without business cleaning. Successful revisions are
+published independently as immutable Zstandard Parquet:
+
+```text
+r2://financial-data-store/mutual_funds/market_cap/raw/
+  market_cap_<YYYYMMDD>_<YYYYMMDDTHHMMSSZ>.parquet
+```
+
+An unchanged rerun verifies and skips the existing raw object. A revised Phase
+0 source keeps its own timestamped raw object. Any failed revision makes the
+overall command fail after completed uploads have been retained. Phase 1 ends
+at the datalake `mf.raw_market_cap_snapshot` table; it does not select the
+latest revision or build a clean model.
 
 ## GitHub Actions Order
 
@@ -271,7 +293,12 @@ The active schedules are independent:
 3. Daily NAV processing: every day at 06:30 UTC / 12:00 IST.
 4. Quarterly AUM extraction: the 10th of Jan/Apr/Jul/Oct at 00:30 UTC / 06:00 IST.
 5. TER extraction: the 5th and 20th at 07:30 UTC / 13:00 IST.
-6. AMFI market-cap source archive: the 15th monthly at 02:30 UTC / 08:00 IST.
+6. AMFI market-cap source archive and raw transformation: the 15th monthly at
+   02:30 UTC / 08:00 IST.
+
+The market-cap workflow is internally ordered: archive sources, transform all
+complete revisions, then dispatch raw datalake ingestion. A failed archive or
+transform step prevents the dispatch.
 
 NIFTY benchmark ingestion is owned by the separate `nifty_index_ingestion`
 repository. It publishes to the datalake, which feeds the active tearsheet

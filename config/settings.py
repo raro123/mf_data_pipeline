@@ -229,6 +229,9 @@ class Logging:
     FETCH_AUM_LOG = "fetch_aum_{date}.log"
     FETCH_TER_LOG = "fetch_ter_{date}.log"
     FETCH_AMFI_MCAP_SOURCES_LOG = "fetch_amfi_mcap_sources_{date}.log"
+    TRANSFORM_AMFI_MCAP_SOURCES_LOG = (
+        "transform_amfi_mcap_sources_{date}.log"
+    )
     
     # Log retention
     LOG_RETENTION_DAYS = int(os.getenv("LOG_RETENTION_DAYS", "30"))

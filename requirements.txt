@@ -1,5 +1,6 @@
 pandas
 openpyxl
+xlrd
 pyarrow
 requests
 boto3

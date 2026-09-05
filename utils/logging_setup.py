@@ -218,6 +218,13 @@ def get_fetch_amfi_mcap_sources_logger(
     return setup_logger(name, Logging.FETCH_AMFI_MCAP_SOURCES_LOG)
 
 
+def get_transform_amfi_mcap_sources_logger(
+    name: str = __name__,
+) -> logging.Logger:
+    """Get logger for AMFI market-cap raw transformation."""
+    return setup_logger(name, Logging.TRANSFORM_AMFI_MCAP_SOURCES_LOG)
+
+
 def get_clean_metadata_logger(name: str = __name__) -> logging.Logger:
     """Get logger for scheme metadata cleaning."""
     return setup_logger(name, Logging.CLEAN_METADATA_LOG)

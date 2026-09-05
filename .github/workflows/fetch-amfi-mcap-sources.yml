@@ -1,4 +1,4 @@
-name: Archive AMFI Market-Cap Sources
+name: AMFI Market-Cap Source and Raw Pipeline
 
 on:
   schedule:
@@ -6,11 +6,11 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: amfi-market-cap-source-archive
+  group: amfi-market-cap-raw-pipeline
   cancel-in-progress: false
 
 jobs:
-  archive-sources:
+  archive-transform-dispatch:
     runs-on: ubuntu-latest
 
     env:
@@ -43,10 +43,25 @@ jobs:
       - name: Archive AMFI market-cap workbooks
         run: uv run python -m scripts.fetch_amfi_mcap_sources
 
-      - name: Upload archive logs on failure
+      - name: Transform archived workbooks to raw Parquet
+        run: uv run python -m scripts.transform_amfi_mcap_sources
+
+      - name: Dispatch datalake market-cap ingestion
+        env:
+          GH_TOKEN: ${{ secrets.DATALAKE_DISPATCH_TOKEN }}
+        run: |
+          gh api --method POST repos/raro123/datalake/dispatches \
+            -f event_type=mf-market-cap-raw-ingestion-completed \
+            -f "client_payload[source_repository]=${{ github.repository }}" \
+            -f "client_payload[source_workflow]=${{ github.workflow }}" \
+            -f "client_payload[source_run_id]=${{ github.run_id }}" \
+            -f "client_payload[source_run_attempt]=${{ github.run_attempt }}" \
+            -f "client_payload[source_sha]=${{ github.sha }}"
+
+      - name: Upload market-cap logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: amfi-market-cap-source-logs-${{ github.run_number }}
+          name: amfi-market-cap-logs-${{ github.run_number }}
           path: logs/
           retention-days: 7

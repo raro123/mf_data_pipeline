@@ -72,14 +72,24 @@ datalake, including safe filename-idempotent no-write reruns.
 
 - Schedule: the 15th of each month at 02:30 UTC / 08:00 IST
 - Runtime: Python 3.12 and uv
-- Command: `uv run python -m scripts.fetch_amfi_mcap_sources`
+- Commands:
+
+```bash
+uv run python -m scripts.fetch_amfi_mcap_sources
+uv run python -m scripts.transform_amfi_mcap_sources
+```
 
 The job archives every distinct AMFI market-cap categorisation workbook under
 `mutual_funds/market_cap/source/`, together with a JSON provenance manifest.
 It preserves the source bytes, skips unchanged period/hash pairs, and retains
 revised content as a new timestamped version. A failed link does not block
-valid archives, but it still fails the workflow for operator visibility. It
-does not parse workbook cells or dispatch a datalake workflow.
+valid archives, but it still fails the workflow for operator visibility.
+
+Only after every source archive succeeds, the transformer verifies each
+workbook/manifest pair and publishes immutable values-only Parquet under
+`mutual_funds/market_cap/raw/`. A successful transform dispatches
+`mf-market-cap-raw-ingestion-completed` to the datalake. Any earlier failure
+stops the sequence before dispatch.
 
 ## Shared Configuration
 

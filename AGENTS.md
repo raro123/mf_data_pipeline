@@ -4,8 +4,8 @@
 
 This repository collects Indian mutual-fund source data, primarily from AMFI,
 and publishes immutable raw snapshots (NAV, scheme metadata, AMC members, AUM,
-and TER), plus original AMFI market-cap workbooks. Canonical analysis tables
-such as `mf.nav_daily` and
+and TER), plus original AMFI market-cap workbooks and values-only raw
+snapshots. Canonical analysis tables such as `mf.nav_daily` and
 `mf.nav_daily_open_growth` are built by the datalake. NIFTY benchmark data is
 maintained by the separate `nifty_index_ingestion` repository.
 
@@ -21,7 +21,7 @@ installed application package.
 - Pandas handles API responses and local transformations.
 - GitHub Actions schedules daily NAV, weekly metadata and AMC member
   extraction, quarterly AUM extraction, twice-monthly TER extraction, and a
-  monthly market-cap source archive.
+  monthly market-cap archive, raw transformation, and datalake dispatch.
 
 R2 paths are built by `config.settings.R2`:
 
@@ -115,10 +115,11 @@ python -m scripts.fetch_ter_data --scheduled
 python -m scripts.fetch_ter_data --month YYYY-MM
 ```
 
-Monthly market-cap source archive:
+Monthly market-cap pipeline:
 
 ```bash
 python -m scripts.fetch_amfi_mcap_sources
+python -m scripts.transform_amfi_mcap_sources
 ```
 
 Optional jobs:
@@ -143,11 +144,11 @@ python -m scripts.test_github_actions_setup
 | AMC members | `30 1 * * 6` | `extract_amc_members` |
 | Scheme-wise AUM | `30 0 10 1,4,7,10 *` | `fetch_aum_data` |
 | TER | `30 7 5,20 * *` | `fetch_ter_data --scheduled` |
-| Market-cap sources | `30 2 15 * *` | `fetch_amfi_mcap_sources` |
+| Market-cap pipeline | `30 2 15 * *` | `fetch_amfi_mcap_sources`, `transform_amfi_mcap_sources`, datalake dispatch |
 
 Schedules are UTC. Their IST times are 12:00 daily, Saturday 06:00 (metadata)
 and 07:00 (AMC members), 06:00 on the 10th of each quarter month, 13:00 on the
-5th and 20th (TER), and 08:00 on the 15th (market-cap sources).
+5th and 20th (TER), and 08:00 on the 15th (market-cap pipeline).
 
 NIFTY benchmark ingestion is scheduled in the separate
 `nifty_index_ingestion` repository and dispatches successful raw uploads to the
