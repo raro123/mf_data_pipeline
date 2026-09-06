@@ -22,6 +22,50 @@ snapshots are complete, immutable, and traceable through the datalake.
 
 ---
 
+### 📅 Date: 2026-09-05 | Session: S3 — Publish values-only market-cap snapshots
+
+**What was done:**
+Added the Phase 1 transformer for archived AMFI market-cap workbooks. It verifies
+canonical workbook/manifest pairs, preserves source rows without business
+cleaning, and publishes each source revision as immutable Zstandard Parquet. The
+monthly workflow now runs archive, transform, and datalake dispatch sequentially.
+
+**Why:**
+The source archive preserves exact evidence, but downstream ingestion needs a
+stable values-only representation. Keeping transformation separate from archive
+capture preserves the source boundary while allowing every revision to remain
+auditable.
+
+**How:**
+The transformer validates manifest identity, workbook size and SHA-256, the exact
+11-column worksheet header, formula caches, and the 28-column Parquet contract.
+Each revision is isolated, uploaded with provenance metadata, and read back for
+schema, row-count, and hash verification. A failed archive or transform prevents
+the workflow from dispatching `mf-market-cap-raw-ingestion-completed`.
+
+**Decisions made:**
+- Preserve strings, partial rows, note-like rows, duplicates, and source row
+  numbers without applying business rules.
+- Publish one immutable raw Parquet object per complete source revision.
+- Dispatch datalake ingestion only after the complete archive and transform
+  sequence succeeds.
+- Keep revision selection, business validation, and clean modelling outside the
+  producer.
+
+**Pending decisions:**
+- None owned by this repository; canonical market-cap modelling remains a
+  datalake follow-up.
+
+**Verification:**
+The full producer suite passed with 85 tests and 5 pre-existing pytest
+return-value warnings. Ruff, workflow YAML parsing, and `git diff --check` also
+passed. Commit: `acb871f`. On 2026-09-07, the standalone production transformer
+processed all 18 archived revisions, uploaded 18 raw Parquet objects containing
+91,691 rows, and reported no failures or skips. Because this was a standalone
+transformer run, it did not dispatch datalake ingestion.
+
+---
+
 ### 📅 Date: 2026-08-24 | Session: S2 — Dispatch TER snapshots to the datalake
 
 **What was done:**
