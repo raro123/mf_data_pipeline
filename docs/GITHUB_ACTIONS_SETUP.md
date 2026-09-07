@@ -1,7 +1,7 @@
 # GitHub Actions Setup
 
-The repository has six active workflows under `.github/workflows/`. All can
-run on schedule or through `workflow_dispatch` from the GitHub Actions tab.
+The repository has six active workflows under `.github/workflows/`.
+Each workflow supports schedules and manual execution.
 
 ## Active Workflows
 
