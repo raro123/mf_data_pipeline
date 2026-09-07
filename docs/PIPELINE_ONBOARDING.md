@@ -49,12 +49,12 @@ Manual commands do not dispatch unless this guide states otherwise.
 
 Run commands from the repository root.
 
-1. Install the repository dependencies.
+1. Run `uv sync` to install the repository dependencies.
 2. Create the required local directories.
 3. Configure R2 credentials for R2-backed commands.
 
 ```bash
-python -c "from config.settings import initialize_project; initialize_project()"
+uv run python -c "from config.settings import initialize_project; initialize_project()"
 ```
 
 Required R2 variables:
@@ -71,7 +71,7 @@ Each workflow also supports manual execution from the GitHub Actions page.
 
 | Workflow | Schedule (UTC) | Schedule (IST) | Command |
 | --- | --- | --- | --- |
-| Daily NAV | Daily at 06:30 | Daily at 12:00 | `python -m scripts.fetch_daily_nav` |
+| Daily NAV | Daily at 06:30 | Daily at 12:00 | `uv run python -m scripts.fetch_daily_nav` |
 | Scheme metadata | Saturday at 00:30 | Saturday at 06:00 | `uv run python -m scripts.extract_scheme_metadata` |
 | AMC members | Saturday at 01:30 | Saturday at 07:00 | `uv run python -m scripts.extract_amc_members` |
 | Scheme-wise AUM | Quarter months, day 10 at 00:30 | Quarter months, day 10 at 06:00 | `uv run python -m scripts.fetch_aum_data` |
@@ -115,8 +115,8 @@ The workflow files show their current names and defaults.
 Use this flow for initial history or an explicit historical repair.
 
 ```bash
-python -m scripts.fetch_historical_nav --start 20060101 --end YYYYMMDD
-python -m scripts.transform_historical_nav
+uv run python -m scripts.fetch_historical_nav --start 20060101 --end YYYYMMDD
+uv run python -m scripts.transform_historical_nav
 ```
 
 Execution order:
@@ -134,7 +134,7 @@ The transformer loads every local CSV file into memory.
 ## 2. Daily NAV Production
 
 ```bash
-python -m scripts.fetch_daily_nav
+uv run python -m scripts.fetch_daily_nav
 ```
 
 The script finds the latest canonical daily raw object.
@@ -144,7 +144,7 @@ It stops on the first failed date.
 Use an explicit bootstrap date only when the raw prefix is empty.
 
 ```bash
-python -m scripts.fetch_daily_nav --bootstrap-date YYYYMMDD
+uv run python -m scripts.fetch_daily_nav --bootstrap-date YYYYMMDD
 ```
 
 Use `--date YYYYMMDD` for one explicit date.
@@ -156,13 +156,13 @@ Use this flow for reports that AMFI published after an existing daily snapshot.
 First run a dry check.
 
 ```bash
-python -m scripts.repair_missing_nav --start YYYYMMDD --end YYYYMMDD
+uv run python -m scripts.repair_missing_nav --start YYYYMMDD --end YYYYMMDD
 ```
 
 Then review the summary and publish missing rows.
 
 ```bash
-python -m scripts.repair_missing_nav --start YYYYMMDD --end YYYYMMDD --write
+uv run python -m scripts.repair_missing_nav --start YYYYMMDD --end YYYYMMDD --write
 ```
 
 The script writes only absent scheme and date keys.
@@ -180,7 +180,7 @@ gh workflow run mf-daily.yml --repo raro123/datalake
 The scheduled raw flow runs one command.
 
 ```bash
-python -m scripts.extract_scheme_metadata
+uv run python -m scripts.extract_scheme_metadata
 ```
 
 It writes a dated raw Parquet object under `mutual_funds/metadata/`.
@@ -188,8 +188,8 @@ It writes a dated raw Parquet object under `mutual_funds/metadata/`.
 The local maintenance flow has a separate source and sequence.
 
 ```bash
-python -m scripts.clean_scheme_metadata
-python -m scripts.build_scheme_masterdata
+uv run python -m scripts.clean_scheme_metadata
+uv run python -m scripts.build_scheme_masterdata
 ```
 
 The cleaner reads the latest local metadata CSV.
@@ -198,7 +198,7 @@ The scheduled R2 extractor does not create that local CSV.
 ## 5. AMC Members
 
 ```bash
-python -m scripts.extract_amc_members
+uv run python -m scripts.extract_amc_members
 ```
 
 The script publishes one immutable AMFI member snapshot.
@@ -209,14 +209,14 @@ The scheduled workflow dispatches the snapshot to the datalake.
 The quarterly workflow runs the default command.
 
 ```bash
-python -m scripts.fetch_aum_data
+uv run python -m scripts.fetch_aum_data
 ```
 
 Manual selections are also available.
 
 ```bash
-python -m scripts.fetch_aum_data --years 3
-python -m scripts.fetch_aum_data --fy 1 --period 1
+uv run python -m scripts.fetch_aum_data --years 3
+uv run python -m scripts.fetch_aum_data --fy 1 --period 1
 ```
 
 The script writes a dated local Parquet file and an R2 snapshot.
@@ -227,13 +227,13 @@ The scheduled workflow dispatches the R2 snapshot to the datalake.
 Use one month for a manual snapshot.
 
 ```bash
-python -m scripts.fetch_ter_data --month YYYY-MM
+uv run python -m scripts.fetch_ter_data --month YYYY-MM
 ```
 
 Use an inclusive range for a historical backfill.
 
 ```bash
-python -m scripts.fetch_ter_data --start-month 2020-04 --end-month YYYY-MM
+uv run python -m scripts.fetch_ter_data --start-month 2020-04 --end-month YYYY-MM
 ```
 
 The scheduled workflow uses `--scheduled`.
@@ -244,8 +244,8 @@ It publishes required recent months and dispatches successful snapshots.
 Always run the archive before the transform.
 
 ```bash
-python -m scripts.fetch_amfi_mcap_sources
-python -m scripts.transform_amfi_mcap_sources
+uv run python -m scripts.fetch_amfi_mcap_sources
+uv run python -m scripts.transform_amfi_mcap_sources
 ```
 
 Execution order:
@@ -264,7 +264,7 @@ Any scheduled failure stops the datalake dispatch.
 ## 9. Optional Zerodha Instruments
 
 ```bash
-python -m scripts.ingest_zerodha_mf
+uv run python -m scripts.ingest_zerodha_mf
 ```
 
 This script requires Kite Connect credentials.
@@ -273,7 +273,7 @@ It does not belong to an automated workflow.
 ## 10. Environment Diagnostic
 
 ```bash
-python -m scripts.test_github_actions_setup
+uv run python -m scripts.test_github_actions_setup
 ```
 
 This command can access R2 and AMFI.

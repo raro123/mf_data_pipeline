@@ -1,9 +1,0 @@
-pandas
-openpyxl
-xlrd
-pyarrow
-requests
-boto3
-python-dotenv
-kiteconnect
-duckdb

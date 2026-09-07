@@ -31,20 +31,19 @@ jobs:
           fetch-depth: 1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v9
         with:
           python-version: '3.12'
           enable-cache: true
-          cache-dependency-glob: 'requirements.txt'
 
       - name: Install dependencies
-        run: uv pip install -r requirements.txt
+        run: uv sync --locked --no-dev
 
       - name: Archive AMFI market-cap workbooks
-        run: uv run python -m scripts.fetch_amfi_mcap_sources
+        run: uv run --locked --no-dev python -m scripts.fetch_amfi_mcap_sources
 
       - name: Transform archived workbooks to raw Parquet
-        run: uv run python -m scripts.transform_amfi_mcap_sources
+        run: uv run --locked --no-dev python -m scripts.transform_amfi_mcap_sources
 
       - name: Dispatch datalake market-cap ingestion
         env:

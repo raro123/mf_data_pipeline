@@ -39,14 +39,11 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for components, storage boundar
 
 ## Current Setup
 
-Use Python 3.12 for new local environments.
-The daily workflow still uses Python 3.9 until the planned `uv` migration.
+Install `uv`, then synchronize the Python 3.12 project environment.
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python -c "from config.settings import initialize_project; initialize_project()"
+uv sync
+uv run python -c "from config.settings import initialize_project; initialize_project()"
 ```
 
 Create `.env` for commands that access R2.
@@ -58,20 +55,19 @@ R2_ACCOUNT_ID=...
 ```
 
 Never commit credential values.
-The planned `uv` migration will replace this setup after dependency validation.
 
 ## Common Commands
 
 Run all modules from the repository root.
 
 ```bash
-python -m scripts.fetch_daily_nav
-python -m scripts.extract_scheme_metadata
-python -m scripts.extract_amc_members
-python -m scripts.fetch_aum_data
-python -m scripts.fetch_ter_data --scheduled
-python -m scripts.fetch_amfi_mcap_sources
-python -m scripts.transform_amfi_mcap_sources
+uv run python -m scripts.fetch_daily_nav
+uv run python -m scripts.extract_scheme_metadata
+uv run python -m scripts.extract_amc_members
+uv run python -m scripts.fetch_aum_data
+uv run python -m scripts.fetch_ter_data --scheduled
+uv run python -m scripts.fetch_amfi_mcap_sources
+uv run python -m scripts.transform_amfi_mcap_sources
 ```
 
 See [docs/PIPELINE_ONBOARDING.md](docs/PIPELINE_ONBOARDING.md) before running backfills, repairs, or maintenance flows.
@@ -79,13 +75,16 @@ See [docs/PIPELINE_ONBOARDING.md](docs/PIPELINE_ONBOARDING.md) before running ba
 ## Tests
 
 The repository contains `unittest` and pytest-style tests.
-The dependency migration will define one complete test command.
+
+```bash
+uv run pytest
+```
 
 The environment diagnostic is separate from unit tests.
 It can contact R2 and AMFI.
 
 ```bash
-python -m scripts.test_github_actions_setup
+uv run python -m scripts.test_github_actions_setup
 ```
 
 ## Repository Layout

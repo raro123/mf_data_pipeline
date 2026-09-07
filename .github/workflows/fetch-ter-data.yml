@@ -32,21 +32,20 @@ jobs:
           fetch-depth: 1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v9
         with:
           python-version: '3.12'
           enable-cache: true
-          cache-dependency-glob: 'requirements.txt'
 
       - name: Install dependencies
-        run: uv pip install -r requirements.txt
+        run: uv sync --locked --no-dev
 
       - name: Fetch and publish TER snapshot
         run: |
           if [ "${{ github.event_name }}" = "schedule" ]; then
-            uv run python -m scripts.fetch_ter_data --scheduled
+            uv run --locked --no-dev python -m scripts.fetch_ter_data --scheduled
           else
-            uv run python -m scripts.fetch_ter_data
+            uv run --locked --no-dev python -m scripts.fetch_ter_data
           fi
 
       - name: Dispatch datalake TER ingestion
