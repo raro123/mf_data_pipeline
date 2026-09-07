@@ -13,8 +13,7 @@ Use these documents for guidance:
 
 - `README.md` for setup and project entry points.
 - `docs/ARCHITECTURE.md` for design and ownership boundaries.
-- `docs/PIPELINE_ONBOARDING.md` for scripts and execution order.
-- `docs/GITHUB_ACTIONS_SETUP.md` for workflow configuration.
+- `docs/PIPELINE_ONBOARDING.md` for scripts, execution order, and workflow configuration.
 
 ## Configuration and Storage
 - Use `config.settings` for shared configuration.

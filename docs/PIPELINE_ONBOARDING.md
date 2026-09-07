@@ -65,6 +65,32 @@ R2_SECRET_ACCESS_KEY
 R2_ACCOUNT_ID
 ```
 
+## Scheduled Workflows
+
+Each workflow also supports manual execution from the GitHub Actions page.
+
+| Workflow | Schedule (UTC) | Schedule (IST) | Command |
+| --- | --- | --- | --- |
+| Daily NAV | Daily at 06:30 | Daily at 12:00 | `python -m scripts.fetch_daily_nav` |
+| Scheme metadata | Saturday at 00:30 | Saturday at 06:00 | `uv run python -m scripts.extract_scheme_metadata` |
+| AMC members | Saturday at 01:30 | Saturday at 07:00 | `uv run python -m scripts.extract_amc_members` |
+| Scheme-wise AUM | Quarter months, day 10 at 00:30 | Quarter months, day 10 at 06:00 | `uv run python -m scripts.fetch_aum_data` |
+| TER | Monthly, days 5 and 20 at 07:30 | Monthly, days 5 and 20 at 13:00 | `uv run python -m scripts.fetch_ter_data --scheduled` |
+| Market-cap pipeline | Monthly, day 15 at 02:30 | Monthly, day 15 at 08:00 | Archive, transform, then dispatch |
+
+Configure these GitHub Actions secrets:
+
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+- `R2_ACCOUNT_ID`
+- `DATALAKE_DISPATCH_TOKEN`
+
+The R2 credentials require access to the `financial-data-store` bucket.
+The dispatch token requires access to dispatch the datalake workflow.
+
+Optional repository variables control timeouts, retries, chunk size, and logging.
+The workflow files show their current names and defaults.
+
 ## Script Inventory
 
 | Script | Purpose | Mode |
@@ -262,7 +288,14 @@ Only these workflows have internal multi-step order:
 2. Each raw producer and its later datalake dispatch.
 
 Historical backfills, NAV repairs, and local metadata maintenance remain manual.
-See [GITHUB_ACTIONS_SETUP.md](GITHUB_ACTIONS_SETUP.md) for schedules and secrets.
+
+## Workflow Verification
+
+Run each workflow manually after you configure its secrets.
+Check the workflow log and confirm the expected R2 object exists.
+
+Common failures include invalid R2 credentials, AMFI response errors, and DuckDB extension failures.
+Use the workflow step log when the uploaded log artifact is empty.
 
 ## Retired Local Outputs
 

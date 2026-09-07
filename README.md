@@ -112,8 +112,7 @@ notebooks/              Exploratory analysis
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md) describes system design and repository boundaries.
-- [Pipeline onboarding](docs/PIPELINE_ONBOARDING.md) lists scripts, execution order, and operating rules.
-- [GitHub Actions setup](docs/GITHUB_ACTIONS_SETUP.md) describes automation, secrets, and operational failures.
+- [Pipeline onboarding](docs/PIPELINE_ONBOARDING.md) lists scripts, execution order, workflow schedules, and setup.
 - [AGENTS.md](AGENTS.md) defines repository instructions for coding agents.
 
 `docs/project_log.md` records completed work.

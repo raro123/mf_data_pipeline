@@ -22,6 +22,36 @@ snapshots are complete, immutable, and traceable through the datalake.
 
 ---
 
+### 📅 Date: 2026-09-07 | Session: S4 — Simplify repository documentation
+
+**What was done:**
+We shortened the README and created separate architecture and pipeline onboarding guides.
+We removed obsolete and duplicated documents.
+We reduced `AGENTS.md` to essential repository guidance and linked `CLAUDE.md` to it.
+GitHub Actions setup now forms a concise section in the pipeline onboarding guide.
+
+**Why:**
+The previous documentation repeated implementation details and contained completed migration notes.
+The new structure gives each document one clear purpose and reduces future maintenance.
+
+**How:**
+We checked scripts, workflows, configuration, and document references against the current repository.
+We kept architecture boundaries separate from pipeline commands and workflow setup.
+
+**Decisions made:**
+- Use `AGENTS.md` as the only agent instruction source.
+- Keep architecture details in `docs/ARCHITECTURE.md`.
+- Keep scripts, execution order, schedules, and workflow setup in `docs/PIPELINE_ONBOARDING.md`.
+- Remove completed migration notes and duplicated workflow documentation.
+
+**Pending decisions:**
+- None. Future storage cleanup and `uv` migration remain separate work items.
+
+**Verification:**
+Document references and formatting checks passed.
+
+---
+
 ### 📅 Date: 2026-09-05 | Session: S3 — Publish values-only market-cap snapshots
 
 **What was done:**
