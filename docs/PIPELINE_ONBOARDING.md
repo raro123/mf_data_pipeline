@@ -88,6 +88,11 @@ Configure these GitHub Actions secrets:
 The R2 credentials require access to the `financial-data-store` bucket.
 The dispatch token requires access to dispatch the datalake workflow.
 
+Extraction and datalake dispatch run as separate jobs. If raw publication passes
+but dispatch fails, repair `DATALAKE_DISPATCH_TOKEN`, then choose **Re-run failed
+jobs** on that run. This retries dispatch without fetching or publishing raw data
+again. The dispatch payload retains the attempt that produced the raw snapshot.
+
 Optional repository variables control timeouts, retries, chunk size, and logging.
 The workflow files show their current names and defaults.
 

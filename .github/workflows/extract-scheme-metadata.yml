@@ -9,6 +9,8 @@ on:
 jobs:
   extract-scheme-metadata:
     runs-on: ubuntu-latest
+    outputs:
+      raw_run_attempt: ${{ github.run_attempt }}
 
     env:
       PYTHONPATH: ${{ github.workspace }}
@@ -37,18 +39,6 @@ jobs:
     - name: Run scheme metadata extraction
       run: uv run --locked --no-dev python -m scripts.extract_scheme_metadata
 
-    - name: Dispatch datalake metadata ingestion
-      env:
-        GH_TOKEN: ${{ secrets.DATALAKE_DISPATCH_TOKEN }}
-      run: |
-        gh api --method POST repos/raro123/datalake/dispatches \
-          -f event_type=mf-metadata-raw-ingestion-completed \
-          -f "client_payload[source_repository]=${{ github.repository }}" \
-          -f "client_payload[source_workflow]=${{ github.workflow }}" \
-          -f "client_payload[source_run_id]=${{ github.run_id }}" \
-          -f "client_payload[source_run_attempt]=${{ github.run_attempt }}" \
-          -f "client_payload[source_sha]=${{ github.sha }}"
-
     - name: Upload logs on failure
       if: failure()
       uses: actions/upload-artifact@v4
@@ -56,3 +46,26 @@ jobs:
         name: scheme-metadata-logs-${{ github.run_number }}
         path: logs/
         retention-days: 7
+
+  dispatch_datalake:
+    needs: extract-scheme-metadata
+    runs-on: ubuntu-latest
+    permissions: {}
+    timeout-minutes: 5
+
+    steps:
+      - name: Dispatch datalake metadata ingestion
+        env:
+          GH_TOKEN: ${{ secrets.DATALAKE_DISPATCH_TOKEN }}
+        run: |
+          test -n "${GH_TOKEN}" || {
+            echo "DATALAKE_DISPATCH_TOKEN is not configured"
+            exit 1
+          }
+          gh api --method POST repos/raro123/datalake/dispatches \
+            -f event_type=mf-metadata-raw-ingestion-completed \
+            -f "client_payload[source_repository]=${{ github.repository }}" \
+            -f "client_payload[source_workflow]=${{ github.workflow }}" \
+            -f "client_payload[source_run_id]=${{ github.run_id }}" \
+            -f "client_payload[source_run_attempt]=${{ needs.extract-scheme-metadata.outputs.raw_run_attempt }}" \
+            -f "client_payload[source_sha]=${{ github.sha }}"
